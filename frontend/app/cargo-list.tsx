@@ -231,6 +231,10 @@ export default function CargoListPage() {
             <Menu.Item onPress={() => handleFilterSelect('non-compliant')} title="Non-Compliant Only" />
             <Menu.Item onPress={() => handleFilterSelect('recent')} title="Recent (7 days)" />
           </Menu>
+          <Appbar.Action 
+            icon="export" 
+            onPress={() => router.push('/export')} 
+          />
         </Appbar.Header>
 
         <View style={styles.content}>
