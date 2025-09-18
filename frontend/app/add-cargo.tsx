@@ -202,7 +202,8 @@ export default function AddCargoPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const openCameraOptions = () => {
+  // Abre o diálogo de escolha de câmera
+const openCameraOptions = () => {
   setCameraDialogVisible(true);
 };
 
