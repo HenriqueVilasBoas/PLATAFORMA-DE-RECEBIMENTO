@@ -206,162 +206,161 @@ export default function AddCargoPage() {
   };
 
   const handleCameraOptionSelect = (option) => {
-    setCameraDialogVisible(false);
-    
-    switch (option) {
-      case 'timestamp':
-        openTimestampApps();
-        break;
-      case 'default':
-        takePictureDefault();
-        break;
-      case 'gallery':
-        selectFromGallery();
-        break;
-    }
-  };
+  setCameraDialogVisible(false);
 
-  const openTimestampApps = async () => {
-    try {
-      // Show system-level app chooser by opening photo with timestamp apps
-      Alert.alert(
-        t('camera.chooseOption'),
-        'Select your preferred timestamp camera app:',
-        [
-          { text: t('button.cancel'), style: 'cancel' },
-          { text: 'Timestamp Camera', onPress: () => openSpecificApp('timestamp-camera://') },
-          { text: 'Open Camera', onPress: () => openSpecificApp('opencamera://') },
-          { text: 'Default Camera', onPress: () => takePictureDefault() },
-          { text: 'Browse Gallery', onPress: () => selectFromGallery() }
-        ]
-      );
-    } catch (error) {
-      console.error('Error showing camera options:', error);
+  switch (option) {
+    case 'timestamp':
+      openTimestampApps();
+      break;
+    case 'default':
       takePictureDefault();
-    }
-  };
+      break;
+    case 'gallery':
+      selectFromGallery();
+      break;
+    default:
+      console.warn('Unknown camera option:', option);
+  }
+};
 
-  const openSpecificApp = async (appUrl) => {
-    try {
-      const canOpen = await Linking.canOpenURL(appUrl);
-      if (canOpen) {
-        await Linking.openURL(appUrl);
-        
-        // Give user guidance on returning with photos
-        setTimeout(() => {
-          Alert.alert(
-            'Photo Instructions',
-            'After taking photos with your camera app:\n\n1. Save the photos to your gallery\n2. Return to this app\n3. Use "From Gallery" to add them to this inspection',
-            [
-              { text: 'OK' },
-              { text: 'Open Gallery Now', onPress: () => selectFromGallery() }
-            ]
-          );
-        }, 1500);
-      } else {
+const openTimestampApps = async () => {
+  try {
+    Alert.alert(
+      t('camera.chooseOption'),
+      'Select your preferred timestamp camera app:',
+      [
+        { text: t('button.cancel'), style: 'cancel' },
+        { text: 'Timestamp Camera', onPress: () => openSpecificApp('timestamp-camera://') },
+        { text: 'Open Camera', onPress: () => openSpecificApp('opencamera://') },
+        { text: 'Default Camera', onPress: () => takePictureDefault() },
+        { text: 'Browse Gallery', onPress: () => selectFromGallery() }
+      ]
+    );
+  } catch (error) {
+    console.error('Error showing camera options:', error);
+    takePictureDefault();
+  }
+};
+
+const openSpecificApp = async (appUrl) => {
+  try {
+    const canOpen = await Linking.canOpenURL(appUrl);
+    if (canOpen) {
+      await Linking.openURL(appUrl);
+      setTimeout(() => {
         Alert.alert(
-          'App Not Found',
-          'This camera app is not installed. Would you like to use the default camera?',
+          'Photo Instructions',
+          'After taking photos with your camera app:\n\n1. Save the photos to your gallery\n2. Return to this app\n3. Use "From Gallery" to add them to this inspection',
           [
-            { text: t('button.cancel'), style: 'cancel' },
-            { text: 'Default Camera', onPress: () => takePictureDefault() },
-            { text: 'Gallery', onPress: () => selectFromGallery() }
+            { text: 'OK' },
+            { text: 'Open Gallery Now', onPress: () => selectFromGallery() }
           ]
         );
-      }
-    } catch (error) {
-      console.error('Error opening specific app:', error);
-      takePictureDefault();
+      }, 1500);
+    } else {
+      Alert.alert(
+        'App Not Found',
+        'This camera app is not installed. Would you like to use the default camera?',
+        [
+          { text: t('button.cancel'), style: 'cancel' },
+          { text: 'Default Camera', onPress: () => takePictureDefault() },
+          { text: 'Gallery', onPress: () => selectFromGallery() }
+        ]
+      );
     }
-  };
+  } catch (error) {
+    console.error('Error opening specific app:', error);
+    takePictureDefault();
+  }
+};
 
-  const takePictureDefault = async () => {
+const takePictureDefault = async () => {
+  try {
+    // Check camera permission
     if (!cameraPermission) {
       Alert.alert('Permission Required', 'Camera permission is required to take photos');
       return;
     }
 
-    try {
-      // Check storage space before taking photo
-      const hasSpace = await checkStorageSpace();
-      if (!hasSpace) {
-        Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaType.Images, // Fixed: Use MediaType.Images instead of MediaTypeOptions.Images
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7, // Reduced quality to save space
-        base64: true
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const compressedBase64 = compressImage(result.assets[0].base64, 0.7);
-        
-        const photoData = {
-          id: Date.now().toString(),
-          base64: compressedBase64,
-          timestamp: new Date().toISOString(),
-          width: result.assets[0].width,
-          height: result.assets[0].height
-        };
-
-        setFormData(prev => ({
-          ...prev,
-          photos: [...prev.photos, photoData]
-        }));
-        
-        Alert.alert(t('message.success'), t('message.photoAdded'));
-      }
-    } catch (error) {
-      console.error('Error taking picture:', error);
-      Alert.alert(t('message.error'), 'Failed to take picture. Please try again.');
+    // Check storage space
+    const hasSpace = await checkStorageSpace();
+    if (!hasSpace) {
+      Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+      return;
     }
-  };
 
-  const selectFromGallery = async () => {
-    try {
-      // Check storage space before selecting photos
-      const hasSpace = await checkStorageSpace();
-      if (!hasSpace) {
-        Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
-        return;
-      }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaType.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true
+    });
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images, // Fixed: Use MediaType.Images instead of MediaTypeOptions.Images
-        allowsMultipleSelection: true,
-        quality: 0.7, // Reduced quality to save space
-        base64: true,
-        selectionLimit: 5 // Limit to prevent storage issues
-      });
+    // Safety check
+    if (!result.canceled && result.assets?.length > 0) {
+      const asset = result.assets[0];
+      const compressedBase64 = asset.base64 ? compressImage(asset.base64, 0.7) : null;
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newPhotos = result.assets.map(asset => {
-          const compressedBase64 = compressImage(asset.base64, 0.7);
-          return {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            base64: compressedBase64,
-            timestamp: new Date().toISOString(),
-            width: asset.width,
-            height: asset.height
-          };
-        });
+      const photoData = {
+        id: Date.now().toString(),
+        base64: compressedBase64,
+        timestamp: new Date().toISOString(),
+        width: asset.width || 0,
+        height: asset.height || 0
+      };
 
-        setFormData(prev => ({
-          ...prev,
-          photos: [...prev.photos, ...newPhotos]
-        }));
-        
-        Alert.alert(t('message.success'), `${newPhotos.length} ${t('message.photosAdded')}`);
-      }
-    } catch (error) {
-      console.error('Error selecting from gallery:', error);
-      Alert.alert(t('message.error'), 'Failed to select images. Please try again.');
+      setFormData(prev => ({
+        ...prev,
+        photos: [...prev.photos, photoData]
+      }));
+
+      Alert.alert(t('message.success'), t('message.photoAdded'));
     }
-  };
+  } catch (error) {
+    console.error('Error taking picture:', error);
+    Alert.alert(t('message.error'), 'Failed to take picture. Please try again.');
+  }
+};
+
+const selectFromGallery = async () => {
+  try {
+    // Check storage space
+    const hasSpace = await checkStorageSpace();
+    if (!hasSpace) {
+      Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaType.Images,
+      allowsMultipleSelection: true,
+      quality: 0.7,
+      base64: true,
+      selectionLimit: 5
+    });
+
+    if (!result.canceled && result.assets?.length > 0) {
+      const newPhotos = result.assets.map(asset => ({
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+        base64: asset.base64 ? compressImage(asset.base64, 0.7) : null,
+        timestamp: new Date().toISOString(),
+        width: asset.width || 0,
+        height: asset.height || 0
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        photos: [...prev.photos, ...newPhotos]
+      }));
+
+      Alert.alert(t('message.success'), `${newPhotos.length} ${t('message.photosAdded')}`);
+    }
+  } catch (error) {
+    console.error('Error selecting from gallery:', error);
+    Alert.alert(t('message.error'), 'Failed to select images. Please try again.');
+  }
+};
 
   const removePhoto = (photoId) => {
     setFormData(prev => ({
