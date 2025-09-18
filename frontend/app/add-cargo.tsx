@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Text, 
@@ -54,6 +54,10 @@ export default function AddCargoPage() {
     invoiceNumber: '',
     materialType: '',
     quantityReceived: '',
+    receiveDate: new Date().toISOString().split('T')[0], // Default to today
+    qualityInspector: '',
+    safetyInspector: '',
+    logisticsInspector: '',
     nonConforming: false,
     nonConformanceType: '',
     nonConformingQuantity: '',
@@ -91,7 +95,11 @@ export default function AddCargoPage() {
         setFormData({
           invoiceNumber: cargoToEdit.invoiceNumber,
           materialType: cargoToEdit.materialType,
-          quantityReceived: cargoToEdit.quantityReceived,
+          quantityReceived: cargoToEdit.quantityReceived || '',
+          receiveDate: cargoToEdit.receiveDate ? cargoToEdit.receiveDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          qualityInspector: cargoToEdit.qualityInspector || '',
+          safetyInspector: cargoToEdit.safetyInspector || '',
+          logisticsInspector: cargoToEdit.logisticsInspector || '',
           nonConforming: cargoToEdit.nonConforming,
           nonConformanceType: cargoToEdit.nonConformanceType || '',
           nonConformingQuantity: cargoToEdit.nonConformingQuantity || '',
@@ -116,10 +124,8 @@ export default function AddCargoPage() {
       newErrors.materialType = 'Material type is required';
     }
     
-    if (!formData.quantityReceived.trim()) {
-      newErrors.quantityReceived = 'Quantity received is required';
-    } else if (isNaN(parseFloat(formData.quantityReceived))) {
-      newErrors.quantityReceived = 'Quantity must be a valid number';
+    if (!formData.qualityInspector.trim()) {
+      newErrors.qualityInspector = 'Quality inspector is required';
     }
     
     if (formData.nonConforming) {
@@ -138,7 +144,49 @@ export default function AddCargoPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const takePicture = async () => {
+  const openCameraOptions = () => {
+    Alert.alert(
+      'Take Photo',
+      'Choose your preferred camera app:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Default Camera', onPress: () => takePictureDefault() },
+        { text: 'Timestamp Camera', onPress: () => openTimestampApp() },
+        { text: 'Gallery', onPress: () => selectFromGallery() }
+      ]
+    );
+  };
+
+  const openTimestampApp = async () => {
+    try {
+      // Try to open Timestamp Camera app
+      const timestampUrl = Platform.OS === 'ios' ? 'timestamp://' : 'com.timestamp.camera';
+      const canOpen = await Linking.canOpenURL(timestampUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(timestampUrl);
+        Alert.alert(
+          'Return to App',
+          'After taking photos with Timestamp Camera, please return to this app and add them from gallery.',
+          [{ text: 'OK', onPress: () => selectFromGallery() }]
+        );
+      } else {
+        Alert.alert(
+          'Timestamp Camera Not Found',
+          'Timestamp Camera app is not installed. Would you like to use the default camera instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Use Default', onPress: () => takePictureDefault() }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error opening timestamp app:', error);
+      takePictureDefault();
+    }
+  };
+
+  const takePictureDefault = async () => {
     if (!cameraPermission) {
       Alert.alert('Permission Required', 'Camera permission is required to take photos');
       return;
@@ -149,16 +197,15 @@ export default function AddCargoPage() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8, // Reduce quality to manage file size
+        quality: 0.8,
         base64: true
       });
 
       if (!result.canceled && result.assets[0]) {
-        const timestamp = new Date().toISOString();
         const photoData = {
           id: Date.now().toString(),
           base64: result.assets[0].base64,
-          timestamp: timestamp,
+          timestamp: new Date().toISOString(),
           width: result.assets[0].width,
           height: result.assets[0].height
         };
@@ -210,6 +257,14 @@ export default function AddCargoPage() {
     }));
   };
 
+  const formatDateForDisplay = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   const handleSave = async () => {
     if (!validateForm()) {
       Alert.alert('Validation Error', 'Please fix the errors and try again');
@@ -251,13 +306,13 @@ export default function AddCargoPage() {
       
       Alert.alert(
         'Success',
-        `Cargo inspection ${isEdit ? 'updated' : 'saved'} successfully`,
+        `Material inspection ${isEdit ? 'updated' : 'saved'} successfully`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
       
     } catch (error) {
       console.error('Error saving cargo:', error);
-      Alert.alert('Error', 'Failed to save cargo inspection');
+      Alert.alert('Error', 'Failed to save material inspection');
     } finally {
       setLoading(false);
     }
@@ -343,17 +398,57 @@ export default function AddCargoPage() {
                 )}
 
                 <TextInput
-                  label="Quantity Received *"
+                  label="Quantity Received (Optional)"
                   value={formData.quantityReceived}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, quantityReceived: text }))}
                   style={styles.input}
-                  error={!!errors.quantityReceived}
                   mode="outlined"
                   keyboardType="numeric"
                 />
-                {errors.quantityReceived && (
-                  <Text style={styles.errorText}>{errors.quantityReceived}</Text>
+
+                <TextInput
+                  label="Receive Date"
+                  value={formatDateForDisplay(formData.receiveDate)}
+                  editable={false}
+                  style={styles.input}
+                  mode="outlined"
+                  right={<TextInput.Icon icon="calendar" />}
+                />
+              </Card.Content>
+            </Card>
+
+            {/* Inspector Information */}
+            <Card style={styles.section}>
+              <Card.Content>
+                <Title style={styles.sectionTitle}>Inspector Information</Title>
+                
+                <TextInput
+                  label="Quality Inspector *"
+                  value={formData.qualityInspector}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, qualityInspector: text }))}
+                  style={styles.input}
+                  error={!!errors.qualityInspector}
+                  mode="outlined"
+                />
+                {errors.qualityInspector && (
+                  <Text style={styles.errorText}>{errors.qualityInspector}</Text>
                 )}
+
+                <TextInput
+                  label="Safety Inspector (Optional)"
+                  value={formData.safetyInspector}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, safetyInspector: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                />
+
+                <TextInput
+                  label="Logistics Inspector (Optional)"  
+                  value={formData.logisticsInspector}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, logisticsInspector: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                />
               </Card.Content>
             </Card>
 
@@ -429,15 +524,15 @@ export default function AddCargoPage() {
             {/* Photos */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Photos with Timestamp</Title>
+                <Title style={styles.sectionTitle}>Photos</Title>
                 <Paragraph style={styles.sectionDescription}>
-                  Add photos of the cargo with automatic timestamps
+                  Add photos of the material
                 </Paragraph>
                 
                 <View style={styles.photoActions}>
                   <Button
                     mode="contained"
-                    onPress={takePicture}
+                    onPress={openCameraOptions}
                     style={styles.photoButton}
                     icon="camera"
                   >
@@ -462,9 +557,6 @@ export default function AddCargoPage() {
                           style={styles.photoThumbnail}
                         />
                         <View style={styles.photoOverlay}>
-                          <Text style={styles.photoTimestamp}>
-                            {new Date(photo.timestamp).toLocaleString()}
-                          </Text>
                           <IconButton
                             icon="delete"
                             size={20}
@@ -601,21 +693,10 @@ const styles = StyleSheet.create({
   },
   photoOverlay: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    top: 4,
+    right: 4,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 4,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  photoTimestamp: {
-    color: 'white',
-    fontSize: 10,
-    flex: 1,
+    borderRadius: 20,
   },
   deletePhotoButton: {
     margin: 0,

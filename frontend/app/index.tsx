@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, StyleSheet, Alert, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Text, 
@@ -70,13 +70,28 @@ export default function HomePage() {
     router.push('/dashboard');
   };
 
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   return (
     <PaperProvider theme={theme}>
       <SafeAreaView style={styles.container}>
         <StatusBar style="auto" />
         
-        <Appbar.Header>
-          <Appbar.Content title="Logistics Inspector" />
+        <Appbar.Header style={styles.header}>
+          <View style={styles.headerContent}>
+            <Image 
+              source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/30nr43u5_LOGO.png' }}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.appTitle}>Material Receiving Control</Text>
+          </View>
           {pendingSync > 0 && (
             <Badge style={styles.syncBadge} size={20}>
               {pendingSync}
@@ -112,30 +127,13 @@ export default function HomePage() {
             </Card>
           </View>
 
-          {/* Main Action Buttons */}
+          {/* Main Action Buttons - New Inspection First */}
           <View style={styles.actionContainer}>
             <Card style={styles.actionCard}>
               <Card.Content>
-                <Title style={styles.actionTitle}>Cargo Management</Title>
+                <Title style={styles.actionTitle}>New Material Inspection</Title>
                 <Paragraph style={styles.actionDescription}>
-                  View, search, and manage all cargo inspection records
-                </Paragraph>
-                <Button
-                  mode="contained"
-                  onPress={handleViewAllCargos}
-                  style={styles.actionButton}
-                  icon="view-list"
-                >
-                  View All Cargos
-                </Button>
-              </Card.Content>
-            </Card>
-
-            <Card style={styles.actionCard}>
-              <Card.Content>
-                <Title style={styles.actionTitle}>New Inspection</Title>
-                <Paragraph style={styles.actionDescription}>
-                  Start a new cargo inspection with photos and details
+                  Start a new material receiving inspection with photos and details
                 </Paragraph>
                 <Button
                   mode="contained"
@@ -143,7 +141,24 @@ export default function HomePage() {
                   style={styles.actionButton}
                   icon="plus"
                 >
-                  New Cargo Inspection
+                  New Material Inspection
+                </Button>
+              </Card.Content>
+            </Card>
+
+            <Card style={styles.actionCard}>
+              <Card.Content>
+                <Title style={styles.actionTitle}>Material Management</Title>
+                <Paragraph style={styles.actionDescription}>
+                  View, search, and manage all material inspection records
+                </Paragraph>
+                <Button
+                  mode="outlined"
+                  onPress={handleViewAllCargos}
+                  style={styles.actionButton}
+                  icon="view-list"
+                >
+                  View All Materials
                 </Button>
               </Card.Content>
             </Card>
@@ -176,10 +191,15 @@ export default function HomePage() {
                     <View style={styles.recentHeader}>
                       <Text style={styles.recentInvoice}>#{cargo.invoiceNumber}</Text>
                       <Text style={styles.recentDate}>
-                        {new Date(cargo.inspectionDate).toLocaleDateString()}
+                        {formatDate(cargo.receiveDate || cargo.inspectionDate)}
                       </Text>
                     </View>
                     <Text style={styles.recentMaterial}>{cargo.materialType}</Text>
+                    <View style={styles.recentInspector}>
+                      <Text style={styles.recentInspectorText}>
+                        Quality: {cargo.qualityInspector}
+                      </Text>
+                    </View>
                     <View style={styles.recentStatus}>
                       <MaterialIcons 
                         name={cargo.nonConforming ? "warning" : "check-circle"} 
@@ -216,6 +236,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  header: {
+    paddingHorizontal: 8,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+    marginRight: 12,
+  },
+  appTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   content: {
     flex: 1,
@@ -299,6 +337,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
     color: '#333',
+  },
+  recentInspector: {
+    marginBottom: 8,
+  },
+  recentInspectorText: {
+    fontSize: 12,
+    color: '#666',
   },
   recentStatus: {
     flexDirection: 'row',
