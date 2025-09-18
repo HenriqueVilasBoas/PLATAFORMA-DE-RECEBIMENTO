@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Alert, Linking, Platform } from 'react-native'
 import { View, StyleSheet, ScrollView, Alert, Image, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -202,10 +203,11 @@ export default function AddCargoPage() {
   };
 
   const openCameraOptions = () => {
-    setCameraDialogVisible(true);
-  };
+  setCameraDialogVisible(true);
+};
 
-  const handleCameraOptionSelect = (option) => {
+// Trata a opção selecionada pelo usuário
+const handleCameraOptionSelect = (option) => {
   setCameraDialogVisible(false);
 
   switch (option) {
@@ -223,25 +225,27 @@ export default function AddCargoPage() {
   }
 };
 
+// Mostra opções de apps com timestamp
 const openTimestampApps = async () => {
   try {
     Alert.alert(
       t('camera.chooseOption'),
-      'Select your preferred timestamp camera app:',
+      'Selecione o aplicativo de câmera com timestamp:',
       [
         { text: t('button.cancel'), style: 'cancel' },
-        { text: 'Timestamp Camera', onPress: () => openSpecificApp('timestamp-camera://') },
+        { text: 'Timestamp Camera', onPress: () => openSpecificApp('intent://com.jeyluta.timestampcamerafree#Intent;package=com.jeyluta.timestampcamerafree;end') },
         { text: 'Open Camera', onPress: () => openSpecificApp('opencamera://') },
-        { text: 'Default Camera', onPress: () => takePictureDefault() },
-        { text: 'Browse Gallery', onPress: () => selectFromGallery() }
+        { text: 'Câmera Nativa', onPress: () => takePictureDefault() },
+        { text: 'Galeria', onPress: () => selectFromGallery() }
       ]
     );
   } catch (error) {
-    console.error('Error showing camera options:', error);
+    console.error('Erro ao mostrar opções de câmera:', error);
     takePictureDefault();
   }
 };
 
+// Tenta abrir um app específico ou oferece alternativas
 const openSpecificApp = async (appUrl) => {
   try {
     const canOpen = await Linking.canOpenURL(appUrl);
@@ -249,43 +253,42 @@ const openSpecificApp = async (appUrl) => {
       await Linking.openURL(appUrl);
       setTimeout(() => {
         Alert.alert(
-          'Photo Instructions',
-          'After taking photos with your camera app:\n\n1. Save the photos to your gallery\n2. Return to this app\n3. Use "From Gallery" to add them to this inspection',
+          'Instruções para Fotos',
+          'Após tirar as fotos com o app:\n\n1. Salve as fotos na galeria\n2. Retorne a este app\n3. Use "Da Galeria" para adicioná-las à inspeção',
           [
             { text: 'OK' },
-            { text: 'Open Gallery Now', onPress: () => selectFromGallery() }
+            { text: 'Abrir Galeria Agora', onPress: () => selectFromGallery() }
           ]
         );
       }, 1500);
     } else {
       Alert.alert(
-        'App Not Found',
-        'This camera app is not installed. Would you like to use the default camera?',
+        'App não encontrado',
+        'Este app de câmera não está instalado. Deseja usar a câmera nativa?',
         [
           { text: t('button.cancel'), style: 'cancel' },
-          { text: 'Default Camera', onPress: () => takePictureDefault() },
-          { text: 'Gallery', onPress: () => selectFromGallery() }
+          { text: 'Câmera Nativa', onPress: () => takePictureDefault() },
+          { text: 'Galeria', onPress: () => selectFromGallery() }
         ]
       );
     }
   } catch (error) {
-    console.error('Error opening specific app:', error);
+    console.error('Erro ao abrir app específico:', error);
     takePictureDefault();
   }
 };
 
+// Usa a câmera nativa para tirar foto
 const takePictureDefault = async () => {
   try {
-    // Check camera permission
     if (!cameraPermission) {
-      Alert.alert('Permission Required', 'Camera permission is required to take photos');
+      Alert.alert('Permissão necessária', 'Permissão de câmera é obrigatória para tirar fotos.');
       return;
     }
 
-    // Check storage space
     const hasSpace = await checkStorageSpace();
     if (!hasSpace) {
-      Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+      Alert.alert('Armazenamento cheio', 'Libere espaço antes de tirar novas fotos.');
       return;
     }
 
@@ -297,7 +300,6 @@ const takePictureDefault = async () => {
       base64: true
     });
 
-    // Safety check
     if (!result.canceled && result.assets?.length > 0) {
       const asset = result.assets[0];
       const compressedBase64 = asset.base64 ? compressImage(asset.base64, 0.7) : null;
@@ -318,17 +320,17 @@ const takePictureDefault = async () => {
       Alert.alert(t('message.success'), t('message.photoAdded'));
     }
   } catch (error) {
-    console.error('Error taking picture:', error);
-    Alert.alert(t('message.error'), 'Failed to take picture. Please try again.');
+    console.error('Erro ao tirar foto:', error);
+    Alert.alert(t('message.error'), 'Falha ao tirar foto. Tente novamente.');
   }
 };
 
+// Seleciona imagens da galeria
 const selectFromGallery = async () => {
   try {
-    // Check storage space
     const hasSpace = await checkStorageSpace();
     if (!hasSpace) {
-      Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+      Alert.alert('Armazenamento cheio', 'Libere espaço antes de selecionar imagens.');
       return;
     }
 
@@ -357,10 +359,9 @@ const selectFromGallery = async () => {
       Alert.alert(t('message.success'), `${newPhotos.length} ${t('message.photosAdded')}`);
     }
   } catch (error) {
-    console.error('Error selecting from gallery:', error);
-    Alert.alert(t('message.error'), 'Failed to select images. Please try again.');
+    console.error('Erro ao selecionar imagens:', error);
+    Alert.alert(t('message.error'), 'Falha ao selecionar imagens. Tente novamente.');
   }
-};
 
   const removePhoto = (photoId) => {
     setFormData(prev => ({
