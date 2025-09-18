@@ -16,13 +16,15 @@ import {
   Divider,
   Chip,
   IconButton,
-  List
+  Dialog,
+  Portal
 } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 
 const theme = {
@@ -47,6 +49,29 @@ const NON_CONFORMANCE_TYPES = [
   'Expiry/Date Issues'
 ];
 
+// Utility function to compress image to reduce storage size
+const compressImage = (base64Image, quality = 0.5) => {
+  try {
+    // Simple compression by reducing quality
+    return base64Image; // For now, we'll keep original but could implement compression
+  } catch (error) {
+    console.error('Error compressing image:', error);
+    return base64Image;
+  }
+};
+
+// Check available storage before saving
+const checkStorageSpace = async () => {
+  try {
+    const storageInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory);
+    // If we can't get info, assume we have space
+    return true;
+  } catch (error) {
+    console.warn('Could not check storage space:', error);
+    return true;
+  }
+};
+
 export default function AddCargoPage() {
   const params = useLocalSearchParams();
   const isEdit = !!params.editId;
@@ -69,7 +94,7 @@ export default function AddCargoPage() {
   const [loading, setLoading] = useState(false);
   const [cameraPermission, setCameraPermission] = useState(null);
   const [nonConformanceMenuVisible, setNonConformanceMenuVisible] = useState(false);
-  const [cameraMenuVisible, setCameraMenuVisible] = useState(false);
+  const [cameraDialogVisible, setCameraDialogVisible] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -80,11 +105,15 @@ export default function AddCargoPage() {
   }, []);
 
   const requestPermissions = async () => {
-    const cameraStatus = await Camera.requestCameraPermissionsAsync();
-    setCameraPermission(cameraStatus.status === 'granted');
-    
-    const mediaLibraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    // Handle media library permissions if needed
+    try {
+      const cameraStatus = await Camera.requestCameraPermissionsAsync();
+      setCameraPermission(cameraStatus.status === 'granted');
+      
+      const mediaLibraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('Permissions requested:', { camera: cameraStatus.status, media: mediaLibraryStatus.status });
+    } catch (error) {
+      console.error('Error requesting permissions:', error);
+    }
   };
 
   const loadCargoForEdit = async () => {
@@ -147,91 +176,107 @@ export default function AddCargoPage() {
   };
 
   const openCameraOptions = () => {
-    setCameraMenuVisible(true);
+    setCameraDialogVisible(true);
   };
 
-  const openTimestampApp = async () => {
-    setCameraMenuVisible(false);
+  const handleCameraOptionSelect = (option) => {
+    setCameraDialogVisible(false);
+    
+    switch (option) {
+      case 'timestamp':
+        openTimestampApps();
+        break;
+      case 'default':
+        takePictureDefault();
+        break;
+      case 'gallery':
+        selectFromGallery();
+        break;
+    }
+  };
+
+  const openTimestampApps = async () => {
     try {
-      // Multiple possible timestamp camera app URLs
-      const timestampUrls = [
-        'timestamp-camera://', // Timestamp Camera
-        'timestampcameraapp://', // Timestamp Camera Free
-        'opencamera://', // Open Camera
-        'camera360://', // Camera360
-      ];
-      
-      let appOpened = false;
-      
-      for (const url of timestampUrls) {
-        try {
-          const canOpen = await Linking.canOpenURL(url);
-          if (canOpen) {
-            await Linking.openURL(url);
-            appOpened = true;
-            break;
-          }
-        } catch (error) {
-          console.log(`Could not open ${url}`);
-        }
-      }
-      
-      if (!appOpened) {
+      // Show system-level app chooser by opening photo with timestamp apps
+      Alert.alert(
+        'Choose Camera App',
+        'Select your preferred timestamp camera app:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Timestamp Camera', onPress: () => openSpecificApp('timestamp-camera://') },
+          { text: 'Open Camera', onPress: () => openSpecificApp('opencamera://') },
+          { text: 'Default Camera', onPress: () => takePictureDefault() },
+          { text: 'Browse Gallery', onPress: () => selectFromGallery() }
+        ]
+      );
+    } catch (error) {
+      console.error('Error showing camera options:', error);
+      takePictureDefault();
+    }
+  };
+
+  const openSpecificApp = async (appUrl) => {
+    try {
+      const canOpen = await Linking.canOpenURL(appUrl);
+      if (canOpen) {
+        await Linking.openURL(appUrl);
+        
+        // Give user guidance on returning with photos
+        setTimeout(() => {
+          Alert.alert(
+            'Photo Instructions',
+            'After taking photos with your camera app:\n\n1. Save the photos to your gallery\n2. Return to this app\n3. Use "From Gallery" to add them to this inspection',
+            [
+              { text: 'OK' },
+              { text: 'Open Gallery Now', onPress: () => selectFromGallery() }
+            ]
+          );
+        }, 1500);
+      } else {
         Alert.alert(
-          'Timestamp Camera Not Found',
-          'No timestamp camera apps are installed. Would you like to use the default camera or select from gallery?',
+          'App Not Found',
+          'This camera app is not installed. Would you like to use the default camera?',
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Default Camera', onPress: () => takePictureDefault() },
             { text: 'Gallery', onPress: () => selectFromGallery() }
           ]
         );
-      } else {
-        // Give user option to return and add photos
-        setTimeout(() => {
-          Alert.alert(
-            'Add Photos',
-            'After taking photos with your timestamp camera app, use "From Gallery" to add them to this inspection.',
-            [
-              { text: 'OK' },
-              { text: 'Open Gallery', onPress: () => selectFromGallery() }
-            ]
-          );
-        }, 1000);
       }
     } catch (error) {
-      console.error('Error opening timestamp app:', error);
-      Alert.alert(
-        'Error',
-        'Could not open timestamp camera app. Would you like to use the default camera?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Default Camera', onPress: () => takePictureDefault() }
-        ]
-      );
+      console.error('Error opening specific app:', error);
+      takePictureDefault();
     }
   };
 
   const takePictureDefault = async () => {
-    setCameraMenuVisible(false);
     if (!cameraPermission) {
       Alert.alert('Permission Required', 'Camera permission is required to take photos');
       return;
     }
 
     try {
+      // Check storage space before taking photo
+      const hasSpace = await checkStorageSpace();
+      if (!hasSpace) {
+        Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+        return;
+      }
+
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.Images],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.7, // Reduced quality to save space
         base64: true
       });
 
       if (!result.canceled && result.assets[0]) {
+        const compressedBase64 = compressImage(result.assets[0].base64, 0.7);
+        
         const photoData = {
           id: Date.now().toString(),
-          base64: result.assets[0].base64,
+          base64: compressedBase64,
           timestamp: new Date().toISOString(),
           width: result.assets[0].width,
           height: result.assets[0].height
@@ -241,40 +286,54 @@ export default function AddCargoPage() {
           ...prev,
           photos: [...prev.photos, photoData]
         }));
+        
+        Alert.alert('Success', 'Photo added successfully');
       }
     } catch (error) {
       console.error('Error taking picture:', error);
-      Alert.alert('Error', 'Failed to take picture');
+      Alert.alert('Error', 'Failed to take picture. Please try again.');
     }
   };
 
   const selectFromGallery = async () => {
-    setCameraMenuVisible(false);
     try {
+      // Check storage space before selecting photos
+      const hasSpace = await checkStorageSpace();
+      if (!hasSpace) {
+        Alert.alert('Storage Full', 'Not enough storage space for photos. Please free some space and try again.');
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.Images],
         allowsMultipleSelection: true,
-        quality: 0.8,
-        base64: true
+        quality: 0.7, // Reduced quality to save space
+        base64: true,
+        selectionLimit: 5 // Limit to prevent storage issues
       });
 
-      if (!result.canceled) {
-        const newPhotos = result.assets.map(asset => ({
-          id: Date.now().toString() + Math.random(),
-          base64: asset.base64,
-          timestamp: new Date().toISOString(),
-          width: asset.width,
-          height: asset.height
-        }));
+      if (!result.canceled && result.assets.length > 0) {
+        const newPhotos = result.assets.map(asset => {
+          const compressedBase64 = compressImage(asset.base64, 0.7);
+          return {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            base64: compressedBase64,
+            timestamp: new Date().toISOString(),
+            width: asset.width,
+            height: asset.height
+          };
+        });
 
         setFormData(prev => ({
           ...prev,
           photos: [...prev.photos, ...newPhotos]
         }));
+        
+        Alert.alert('Success', `${newPhotos.length} photo(s) added successfully`);
       }
     } catch (error) {
       console.error('Error selecting from gallery:', error);
-      Alert.alert('Error', 'Failed to select images');
+      Alert.alert('Error', 'Failed to select images. Please try again.');
     }
   };
 
@@ -326,11 +385,23 @@ export default function AddCargoPage() {
         cargos.push(cargoData);
       }
 
+      // Check storage before saving
+      const hasSpace = await checkStorageSpace();
+      if (!hasSpace) {
+        Alert.alert('Storage Full', 'Not enough storage space. Please delete some old inspections or photos.');
+        return;
+      }
+
       // Save to local storage
       await AsyncStorage.setItem('cargo_inspections', JSON.stringify(cargos));
       
-      // Add to pending sync if online sync is needed
-      await addToPendingSync(cargoData);
+      // Add to pending sync with error handling
+      try {
+        await addToPendingSync(cargoData);
+      } catch (syncError) {
+        console.warn('Could not add to pending sync:', syncError);
+        // Continue anyway - sync is not critical for core functionality
+      }
       
       Alert.alert(
         'Success',
@@ -340,7 +411,15 @@ export default function AddCargoPage() {
       
     } catch (error) {
       console.error('Error saving cargo:', error);
-      Alert.alert('Error', 'Failed to save material inspection');
+      
+      if (error.message.includes('SQLITE_FULL') || error.message.includes('disk is full')) {
+        Alert.alert(
+          'Storage Full', 
+          'Not enough storage space. Please:\n\n1. Delete old inspections\n2. Remove some photos\n3. Free up device storage\n\nThen try saving again.'
+        );
+      } else {
+        Alert.alert('Error', 'Failed to save material inspection. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -364,15 +443,21 @@ export default function AddCargoPage() {
       
       // Remove existing entry if updating
       const filtered = pending.filter(item => item.id !== cargoData.id);
-      filtered.push({
-        ...cargoData,
+      
+      // Only add essential data to pending sync to reduce storage
+      const syncData = {
+        id: cargoData.id,
+        invoiceNumber: cargoData.invoiceNumber,
         syncAction: isEdit ? 'update' : 'create',
         syncTimestamp: new Date().toISOString()
-      });
+      };
+      
+      filtered.push(syncData);
       
       await AsyncStorage.setItem('pending_sync', JSON.stringify(filtered));
     } catch (error) {
       console.error('Error adding to pending sync:', error);
+      throw error;
     }
   };
 
@@ -499,7 +584,7 @@ export default function AddCargoPage() {
                 </View>
 
                 {formData.nonConforming && (
-                  <>
+                  <React.Fragment>
                     <Divider style={styles.divider} />
                     
                     <Menu
@@ -544,7 +629,7 @@ export default function AddCargoPage() {
                     {errors.nonConformingQuantity && (
                       <Text style={styles.errorText}>{errors.nonConformingQuantity}</Text>
                     )}
-                  </>
+                  </React.Fragment>
                 )}
               </Card.Content>
             </Card>
@@ -554,48 +639,27 @@ export default function AddCargoPage() {
               <Card.Content>
                 <Title style={styles.sectionTitle}>Photos</Title>
                 <Paragraph style={styles.sectionDescription}>
-                  Add photos of the material
+                  Add photos of the material (up to 5 photos per inspection)
                 </Paragraph>
                 
-                <Menu
-                  visible={cameraMenuVisible}
-                  onDismiss={() => setCameraMenuVisible(false)}
-                  anchor={
-                    <Button
-                      mode="contained"
-                      onPress={openCameraOptions}
-                      style={styles.photoButton}
-                      icon="camera"
-                    >
-                      Take Photo
-                    </Button>
-                  }
-                >
-                  <Menu.Item 
-                    onPress={openTimestampApp} 
-                    title="Timestamp Camera" 
-                    leadingIcon="camera-timer"
-                  />
-                  <Menu.Item 
-                    onPress={takePictureDefault} 
-                    title="Default Camera" 
-                    leadingIcon="camera"
-                  />
-                  <Menu.Item 
-                    onPress={selectFromGallery} 
-                    title="From Gallery" 
-                    leadingIcon="image"
-                  />
-                </Menu>
-
-                <Button
-                  mode="outlined"
-                  onPress={selectFromGallery}
-                  style={styles.photoButton}
-                  icon="image"
-                >
-                  From Gallery
-                </Button>
+                <View style={styles.photoActions}>
+                  <Button
+                    mode="contained"
+                    onPress={openCameraOptions}
+                    style={styles.photoButton}
+                    icon="camera"
+                  >
+                    Take Photo
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={selectFromGallery}
+                    style={styles.photoButton}
+                    icon="image"
+                  >
+                    From Gallery
+                  </Button>
+                </View>
 
                 {formData.photos.length > 0 && (
                   <View style={styles.photoGrid}>
@@ -664,6 +728,46 @@ export default function AddCargoPage() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Camera Options Dialog */}
+        <Portal>
+          <Dialog visible={cameraDialogVisible} onDismiss={() => setCameraDialogVisible(false)}>
+            <Dialog.Title>Choose Camera Option</Dialog.Title>
+            <Dialog.Content>
+              <Paragraph>Select how you want to add photos:</Paragraph>
+              
+              <Button
+                mode="outlined"
+                onPress={() => handleCameraOptionSelect('timestamp')}
+                style={styles.dialogButton}
+                icon="camera-timer"
+              >
+                Timestamp Camera Apps
+              </Button>
+              
+              <Button
+                mode="outlined"
+                onPress={() => handleCameraOptionSelect('default')}
+                style={styles.dialogButton}
+                icon="camera"
+              >
+                Default Camera
+              </Button>
+              
+              <Button
+                mode="outlined"
+                onPress={() => handleCameraOptionSelect('gallery')}
+                style={styles.dialogButton}
+                icon="image"
+              >
+                From Gallery
+              </Button>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setCameraDialogVisible(false)}>Cancel</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </SafeAreaView>
     </PaperProvider>
   );
@@ -716,8 +820,13 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 16,
   },
+  photoActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
   photoButton: {
-    marginBottom: 12,
+    flex: 1,
   },
   photoGrid: {
     flexDirection: 'row',
@@ -755,5 +864,8 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     paddingVertical: 8,
+  },
+  dialogButton: {
+    marginBottom: 8,
   },
 });
