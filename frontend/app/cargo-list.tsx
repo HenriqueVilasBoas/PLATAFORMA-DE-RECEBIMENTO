@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Alert } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Text, 
@@ -57,7 +57,7 @@ export default function CargoListPage() {
       applyFilters(cargoList, searchQuery, selectedFilter);
     } catch (error) {
       console.error('Error loading cargos:', error);
-      Alert.alert('Error', 'Failed to load cargo data');
+      Alert.alert('Error', 'Failed to load material data');
     }
   };
 
@@ -69,6 +69,7 @@ export default function CargoListPage() {
       filtered = filtered.filter(cargo => 
         cargo.invoiceNumber.toLowerCase().includes(query.toLowerCase()) ||
         cargo.materialType.toLowerCase().includes(query.toLowerCase()) ||
+        cargo.qualityInspector?.toLowerCase().includes(query.toLowerCase()) ||
         cargo.notes?.toLowerCase().includes(query.toLowerCase())
       );
     }
@@ -84,7 +85,7 @@ export default function CargoListPage() {
       case 'recent':
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        filtered = filtered.filter(cargo => new Date(cargo.inspectionDate) > weekAgo);
+        filtered = filtered.filter(cargo => new Date(cargo.receiveDate || cargo.inspectionDate) > weekAgo);
         break;
       default:
         // 'all' - no additional filtering
@@ -92,9 +93,18 @@ export default function CargoListPage() {
     }
 
     // Sort by date (newest first)
-    filtered.sort((a, b) => new Date(b.inspectionDate) - new Date(a.inspectionDate));
+    filtered.sort((a, b) => new Date(b.receiveDate || b.inspectionDate) - new Date(a.receiveDate || a.inspectionDate));
     
     setFilteredCargos(filtered);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   const handleSearch = (query) => {
@@ -147,19 +157,39 @@ export default function CargoListPage() {
     );
   };
 
+  const handleExport = (cargo) => {
+    setDetailModalVisible(false);
+    router.push({
+      pathname: '/export',
+      params: { cargoId: cargo.id }
+    });
+  };
+
   const renderCargoItem = ({ item }) => (
     <Card style={styles.cargoCard} onPress={() => handleCargoPress(item)}>
       <Card.Content>
         <View style={styles.cargoHeader}>
           <Text style={styles.invoiceNumber}>#{item.invoiceNumber}</Text>
           <Text style={styles.inspectionDate}>
-            {new Date(item.inspectionDate).toLocaleDateString()}
+            {formatDate(item.receiveDate || item.inspectionDate)}
           </Text>
         </View>
         
         <View style={styles.cargoInfo}>
           <Text style={styles.materialType}>{item.materialType}</Text>
-          <Text style={styles.quantity}>Qty: {item.quantityReceived}</Text>
+          {item.quantityReceived && (
+            <Text style={styles.quantity}>Qty: {item.quantityReceived}</Text>
+          )}
+        </View>
+
+        <View style={styles.inspectorInfo}>
+          <Text style={styles.inspectorText}>Quality: {item.qualityInspector}</Text>
+          {item.safetyInspector && (
+            <Text style={styles.inspectorText}>Safety: {item.safetyInspector}</Text>
+          )}
+          {item.logisticsInspector && (
+            <Text style={styles.inspectorText}>Logistics: {item.logisticsInspector}</Text>
+          )}
         </View>
 
         <View style={styles.cargoStatus}>
@@ -215,7 +245,7 @@ export default function CargoListPage() {
         
         <Appbar.Header>
           <Appbar.BackAction onPress={() => router.back()} />
-          <Appbar.Content title="Cargo Inspections" />
+          <Appbar.Content title="Material Inspections" />
           <Menu
             visible={filterMenuVisible}
             onDismiss={() => setFilterMenuVisible(false)}
@@ -239,7 +269,7 @@ export default function CargoListPage() {
 
         <View style={styles.content}>
           <Searchbar
-            placeholder="Search by invoice, material, or notes..."
+            placeholder="Search by invoice, material, inspector, or notes..."
             onChangeText={handleSearch}
             value={searchQuery}
             style={styles.searchbar}
@@ -260,11 +290,11 @@ export default function CargoListPage() {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="inventory" size={64} color="#ccc" />
-                <Text style={styles.emptyText}>No cargo inspections found</Text>
+                <Text style={styles.emptyText}>No material inspections found</Text>
                 <Text style={styles.emptySubtext}>
                   {searchQuery || selectedFilter !== 'all' 
                     ? 'Try adjusting your search or filter'
-                    : 'Start by adding your first cargo inspection'
+                    : 'Start by adding your first material inspection'
                   }
                 </Text>
               </View>
@@ -279,7 +309,7 @@ export default function CargoListPage() {
           label="New Inspection"
         />
 
-        {/* Cargo Detail Modal */}
+        {/* Material Detail Modal */}
         <Portal>
           <Modal
             visible={detailModalVisible}
@@ -288,26 +318,54 @@ export default function CargoListPage() {
           >
             {selectedCargo && (
               <View>
-                <Title style={styles.modalTitle}>
-                  Inspection #{selectedCargo.invoiceNumber}
-                </Title>
+                <View style={styles.modalHeader}>
+                  <Image 
+                    source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/hfup94uz_LOGO%20carvalho.png' }}
+                    style={styles.modalLogo}
+                    resizeMode="contain"
+                  />
+                  <Title style={styles.modalTitle}>
+                    Inspection #{selectedCargo.invoiceNumber}
+                  </Title>
+                </View>
                 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Material Type:</Text>
                   <Text style={styles.detailValue}>{selectedCargo.materialType}</Text>
                 </View>
                 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Quantity:</Text>
-                  <Text style={styles.detailValue}>{selectedCargo.quantityReceived}</Text>
-                </View>
+                {selectedCargo.quantityReceived && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Quantity:</Text>
+                    <Text style={styles.detailValue}>{selectedCargo.quantityReceived}</Text>
+                  </View>
+                )}
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Date:</Text>
+                  <Text style={styles.detailLabel}>Receive Date:</Text>
                   <Text style={styles.detailValue}>
-                    {new Date(selectedCargo.inspectionDate).toLocaleString()}
+                    {formatDate(selectedCargo.receiveDate)}
                   </Text>
                 </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Quality Inspector:</Text>
+                  <Text style={styles.detailValue}>{selectedCargo.qualityInspector}</Text>
+                </View>
+
+                {selectedCargo.safetyInspector && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Safety Inspector:</Text>
+                    <Text style={styles.detailValue}>{selectedCargo.safetyInspector}</Text>
+                  </View>
+                )}
+
+                {selectedCargo.logisticsInspector && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Logistics Inspector:</Text>
+                    <Text style={styles.detailValue}>{selectedCargo.logisticsInspector}</Text>
+                  </View>
+                )}
                 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Status:</Text>
@@ -353,6 +411,13 @@ export default function CargoListPage() {
                     style={styles.modalButton}
                   >
                     Edit
+                  </Button>
+                  <Button 
+                    mode="outlined" 
+                    onPress={() => handleExport(selectedCargo)}
+                    style={styles.modalButton}
+                  >
+                    Export
                   </Button>
                   <Button 
                     mode="contained" 
@@ -419,7 +484,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   materialType: {
     fontSize: 16,
@@ -429,6 +494,14 @@ const styles = StyleSheet.create({
   quantity: {
     fontSize: 14,
     color: '#666',
+  },
+  inspectorInfo: {
+    marginBottom: 12,
+  },
+  inspectorText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
   },
   cargoStatus: {
     flexDirection: 'row',
@@ -475,11 +548,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxHeight: '80%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    justifyContent: 'center',
+  },
+  modalLogo: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
   },
   detailRow: {
     marginBottom: 12,
@@ -498,7 +580,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginTop: 24,
-    gap: 12,
+    gap: 8,
   },
   modalButton: {
     flex: 1,
