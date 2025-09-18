@@ -9,13 +9,15 @@ import {
   Paragraph,
   Provider as PaperProvider,
   DefaultTheme,
-  Appbar,
-  Badge
+  Badge,
+  Menu,
+  IconButton
 } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const theme = {
   ...DefaultTheme,
@@ -29,9 +31,11 @@ const theme = {
 };
 
 export default function HomePage() {
+  const { t, language, setLanguage } = useLanguage();
   const [totalCargos, setTotalCargos] = useState(0);
   const [pendingSync, setPendingSync] = useState(0);
   const [recentCargos, setRecentCargos] = useState([]);
+  const [languageMenuVisible, setLanguageMenuVisible] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -48,10 +52,13 @@ export default function HomePage() {
       const recent = cargos.slice(-3).reverse();
       setRecentCargos(recent);
 
-      // Count pending sync items
+      // Count pending sync items (items that haven't been exported)
       const pendingData = await AsyncStorage.getItem('pending_sync');
       const pending = pendingData ? JSON.parse(pendingData) : [];
-      setPendingSync(pending.length);
+      
+      // Also count items that haven't been exported
+      const notExportedCount = cargos.filter(cargo => !cargo.exported).length;
+      setPendingSync(Math.max(pending.length, notExportedCount));
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     }
@@ -78,6 +85,11 @@ export default function HomePage() {
     return `${day}/${month}/${year}`;
   };
 
+  const handleLanguageChange = (newLanguage) => {
+    setLanguage(newLanguage);
+    setLanguageMenuVisible(false);
+  };
+
   return (
     <PaperProvider theme={theme}>
       <SafeAreaView style={styles.container}>
@@ -91,11 +103,34 @@ export default function HomePage() {
               resizeMode="contain"
             />
             <View style={styles.headerTextContainer}>
-              <Text style={styles.appTitle}>Material Receiving Control</Text>
-              <Text style={styles.appSubtitle}>Quality Inspection System</Text>
+              <Text style={styles.appTitle}>{t('app.title')}</Text>
+              <Text style={styles.appSubtitle}>{t('app.subtitle')}</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
+            <Menu
+              visible={languageMenuVisible}
+              onDismiss={() => setLanguageMenuVisible(false)}
+              anchor={
+                <IconButton
+                  icon="translate"
+                  iconColor="#fff"
+                  onPress={() => setLanguageMenuVisible(true)}
+                />
+              }
+            >
+              <Menu.Item
+                onPress={() => handleLanguageChange('pt')}
+                title={t('language.portuguese')}
+                leadingIcon={language === 'pt' ? 'check' : undefined}
+              />
+              <Menu.Item
+                onPress={() => handleLanguageChange('en')}
+                title={t('language.english')}
+                leadingIcon={language === 'en' ? 'check' : undefined}
+              />
+            </Menu>
+            
             {pendingSync > 0 && (
               <View style={styles.syncContainer}>
                 <Badge style={styles.syncBadge} size={20}>
@@ -112,10 +147,10 @@ export default function HomePage() {
           <View style={styles.statsContainer}>
             <Card style={styles.statsCard}>
               <Card.Content style={styles.statsContent}>
-                <MaterialIcons name="inventory" size={40} color="#2196F3" />
+                <MaterialIcons name="assignment" size={40} color="#2196F3" />
                 <View style={styles.statsText}>
                   <Title style={styles.statsNumber}>{totalCargos}</Title>
-                  <Paragraph>Total Inspections</Paragraph>
+                  <Paragraph>{t('home.totalInspections')}</Paragraph>
                 </View>
               </Card.Content>
             </Card>
@@ -125,7 +160,7 @@ export default function HomePage() {
                 <MaterialIcons name="sync" size={40} color="#FF9800" />
                 <View style={styles.statsText}>
                   <Title style={styles.statsNumber}>{pendingSync}</Title>
-                  <Paragraph>Pending Sync</Paragraph>
+                  <Paragraph>{t('home.pendingSync')}</Paragraph>
                 </View>
               </Card.Content>
             </Card>
@@ -138,9 +173,9 @@ export default function HomePage() {
                 <View style={styles.actionHeader}>
                   <MaterialIcons name="add-box" size={32} color="#2196F3" />
                   <View style={styles.actionTitleContainer}>
-                    <Title style={styles.actionTitle}>New Material Inspection</Title>
+                    <Title style={styles.actionTitle}>{t('home.newMaterialInspection')}</Title>
                     <Paragraph style={styles.actionDescription}>
-                      Start a new material receiving inspection with photos and details
+                      {t('home.newInspectionDesc')}
                     </Paragraph>
                   </View>
                 </View>
@@ -150,7 +185,7 @@ export default function HomePage() {
                   style={styles.actionButton}
                   icon="plus"
                 >
-                  New Material Inspection
+                  {t('button.newMaterialInspection')}
                 </Button>
               </Card.Content>
             </Card>
@@ -160,9 +195,9 @@ export default function HomePage() {
                 <View style={styles.actionHeader}>
                   <MaterialIcons name="list-alt" size={32} color="#4CAF50" />
                   <View style={styles.actionTitleContainer}>
-                    <Title style={styles.actionTitle}>Material Management</Title>
+                    <Title style={styles.actionTitle}>{t('home.materialManagement')}</Title>
                     <Paragraph style={styles.actionDescription}>
-                      View, search, and manage all material inspection records
+                      {t('home.materialManagementDesc')}
                     </Paragraph>
                   </View>
                 </View>
@@ -172,7 +207,7 @@ export default function HomePage() {
                   style={styles.actionButton}
                   icon="view-list"
                 >
-                  View All Materials
+                  {t('button.viewAllMaterials')}
                 </Button>
               </Card.Content>
             </Card>
@@ -182,9 +217,9 @@ export default function HomePage() {
                 <View style={styles.actionHeader}>
                   <MaterialIcons name="analytics" size={32} color="#FF9800" />
                   <View style={styles.actionTitleContainer}>
-                    <Title style={styles.actionTitle}>Analytics Dashboard</Title>
+                    <Title style={styles.actionTitle}>{t('home.analyticsDashboard')}</Title>
                     <Paragraph style={styles.actionDescription}>
-                      View statistics, compliance reports, and insights
+                      {t('home.analyticsDashboardDesc')}
                     </Paragraph>
                   </View>
                 </View>
@@ -194,7 +229,7 @@ export default function HomePage() {
                   style={styles.actionButton}
                   icon="chart-line"
                 >
-                  View Dashboard
+                  {t('button.viewDashboard')}
                 </Button>
               </Card.Content>
             </Card>
@@ -203,20 +238,25 @@ export default function HomePage() {
           {/* Recent Inspections Preview */}
           {recentCargos.length > 0 && (
             <View style={styles.recentContainer}>
-              <Title style={styles.sectionTitle}>Recent Inspections</Title>
+              <Title style={styles.sectionTitle}>{t('home.recentInspections')}</Title>
               {recentCargos.map((cargo, index) => (
                 <Card key={cargo.id} style={styles.recentCard}>
                   <Card.Content>
                     <View style={styles.recentHeader}>
                       <Text style={styles.recentInvoice}>#{cargo.invoiceNumber}</Text>
-                      <Text style={styles.recentDate}>
-                        {formatDate(cargo.receiveDate || cargo.inspectionDate)}
-                      </Text>
+                      <View style={styles.recentMeta}>
+                        <Text style={styles.recentDate}>
+                          {formatDate(cargo.receiveDate || cargo.inspectionDate)}
+                        </Text>
+                        {cargo.exported && (
+                          <MaterialIcons name="cloud-done" size={16} color="#4CAF50" />
+                        )}
+                      </View>
                     </View>
                     <Text style={styles.recentMaterial}>{cargo.materialType}</Text>
                     <View style={styles.recentInspector}>
                       <Text style={styles.recentInspectorText}>
-                        Quality: {cargo.qualityInspector}
+                        {t('form.qualityInspector')}: {cargo.qualityInspector}
                       </Text>
                     </View>
                     <View style={styles.recentStatus}>
@@ -229,7 +269,7 @@ export default function HomePage() {
                         styles.recentStatusText,
                         { color: cargo.nonConforming ? "#f44336" : "#4caf50" }
                       ]}>
-                        {cargo.nonConforming ? "Non-Conforming" : "Compliant"}
+                        {cargo.nonConforming ? t('conformance.nonCompliant') : t('conformance.compliant')}
                       </Text>
                     </View>
                   </Card.Content>
@@ -300,6 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
+    marginLeft: 8,
   },
   syncBadge: {
     backgroundColor: '#f44336',
@@ -382,6 +423,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2196F3',
+  },
+  recentMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   recentDate: {
     fontSize: 14,

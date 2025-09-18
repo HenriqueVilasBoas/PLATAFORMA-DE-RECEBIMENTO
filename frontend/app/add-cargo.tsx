@@ -26,6 +26,7 @@ import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const theme = {
   ...DefaultTheme,
@@ -39,14 +40,14 @@ const theme = {
 };
 
 const NON_CONFORMANCE_TYPES = [
-  'Physical Damage',
-  'Packaging Damage',
-  'Quantity Discrepancy',
-  'Quality Issues',
-  'Missing Documentation',
-  'Contamination',
-  'Wrong Specification',
-  'Expiry/Date Issues'
+  'nonConformance.physicalDamage',
+  'nonConformance.packagingDamage',
+  'nonConformance.quantityDiscrepancy',
+  'nonConformance.qualityIssues',
+  'nonConformance.missingDocumentation',
+  'nonConformance.contamination',
+  'nonConformance.wrongSpecification',
+  'nonConformance.expiryDateIssues'
 ];
 
 // Utility function to compress image to reduce storage size
@@ -73,6 +74,7 @@ const checkStorageSpace = async () => {
 };
 
 export default function AddCargoPage() {
+  const { t } = useLanguage();
   const params = useLocalSearchParams();
   const isEdit = !!params.editId;
   
@@ -81,6 +83,7 @@ export default function AddCargoPage() {
     materialType: '',
     quantityReceived: '',
     receiveDate: new Date().toISOString().split('T')[0], // Default to today
+    storageLocation: '',
     qualityInspector: '',
     safetyInspector: '',
     logisticsInspector: '',
@@ -99,6 +102,7 @@ export default function AddCargoPage() {
 
   useEffect(() => {
     requestPermissions();
+    loadLastQualityInspector();
     if (isEdit) {
       loadCargoForEdit();
     }
@@ -116,6 +120,27 @@ export default function AddCargoPage() {
     }
   };
 
+  const loadLastQualityInspector = async () => {
+    try {
+      const lastInspector = await AsyncStorage.getItem('last_quality_inspector');
+      if (lastInspector && !isEdit) {
+        setFormData(prev => ({ ...prev, qualityInspector: lastInspector }));
+      }
+    } catch (error) {
+      console.error('Error loading last inspector:', error);
+    }
+  };
+
+  const saveLastQualityInspector = async (inspectorName) => {
+    try {
+      if (inspectorName.trim()) {
+        await AsyncStorage.setItem('last_quality_inspector', inspectorName.trim());
+      }
+    } catch (error) {
+      console.error('Error saving last inspector:', error);
+    }
+  };
+
   const loadCargoForEdit = async () => {
     try {
       const cargosData = await AsyncStorage.getItem('cargo_inspections');
@@ -128,6 +153,7 @@ export default function AddCargoPage() {
           materialType: cargoToEdit.materialType,
           quantityReceived: cargoToEdit.quantityReceived || '',
           receiveDate: cargoToEdit.receiveDate ? cargoToEdit.receiveDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          storageLocation: cargoToEdit.storageLocation || '',
           qualityInspector: cargoToEdit.qualityInspector || '',
           safetyInspector: cargoToEdit.safetyInspector || '',
           logisticsInspector: cargoToEdit.logisticsInspector || '',
@@ -140,7 +166,7 @@ export default function AddCargoPage() {
       }
     } catch (error) {
       console.error('Error loading cargo for edit:', error);
-      Alert.alert('Error', 'Failed to load cargo data');
+      Alert.alert(t('message.error'), 'Failed to load cargo data');
     }
   };
 
@@ -148,26 +174,26 @@ export default function AddCargoPage() {
     const newErrors = {};
     
     if (!formData.invoiceNumber.trim()) {
-      newErrors.invoiceNumber = 'Invoice number is required';
+      newErrors.invoiceNumber = `${t('form.invoiceNumber')} ${t('validation.required')}`;
     }
     
     if (!formData.materialType.trim()) {
-      newErrors.materialType = 'Material type is required';
+      newErrors.materialType = `${t('form.materialType')} ${t('validation.required')}`;
     }
     
     if (!formData.qualityInspector.trim()) {
-      newErrors.qualityInspector = 'Quality inspector is required';
+      newErrors.qualityInspector = `${t('form.qualityInspector')} ${t('validation.required')}`;
     }
     
     if (formData.nonConforming) {
       if (!formData.nonConformanceType) {
-        newErrors.nonConformanceType = 'Non-conformance type is required';
+        newErrors.nonConformanceType = `${t('conformance.selectType')} ${t('validation.required')}`;
       }
       
       if (!formData.nonConformingQuantity.trim()) {
-        newErrors.nonConformingQuantity = 'Non-conforming quantity is required';
+        newErrors.nonConformingQuantity = `${t('conformance.nonConformingQuantity')} ${t('validation.required')}`;
       } else if (isNaN(parseFloat(formData.nonConformingQuantity))) {
-        newErrors.nonConformingQuantity = 'Quantity must be a valid number';
+        newErrors.nonConformingQuantity = `${t('conformance.nonConformingQuantity')} ${t('validation.validNumber')}`;
       }
     }
     
@@ -199,10 +225,10 @@ export default function AddCargoPage() {
     try {
       // Show system-level app chooser by opening photo with timestamp apps
       Alert.alert(
-        'Choose Camera App',
+        t('camera.chooseOption'),
         'Select your preferred timestamp camera app:',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('button.cancel'), style: 'cancel' },
           { text: 'Timestamp Camera', onPress: () => openSpecificApp('timestamp-camera://') },
           { text: 'Open Camera', onPress: () => openSpecificApp('opencamera://') },
           { text: 'Default Camera', onPress: () => takePictureDefault() },
@@ -237,7 +263,7 @@ export default function AddCargoPage() {
           'App Not Found',
           'This camera app is not installed. Would you like to use the default camera?',
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('button.cancel'), style: 'cancel' },
             { text: 'Default Camera', onPress: () => takePictureDefault() },
             { text: 'Gallery', onPress: () => selectFromGallery() }
           ]
@@ -264,14 +290,14 @@ export default function AddCargoPage() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: [ImagePicker.MediaType.Images],
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7, // Reduced quality to save space
         base64: true
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         const compressedBase64 = compressImage(result.assets[0].base64, 0.7);
         
         const photoData = {
@@ -287,11 +313,11 @@ export default function AddCargoPage() {
           photos: [...prev.photos, photoData]
         }));
         
-        Alert.alert('Success', 'Photo added successfully');
+        Alert.alert(t('message.success'), t('message.photoAdded'));
       }
     } catch (error) {
       console.error('Error taking picture:', error);
-      Alert.alert('Error', 'Failed to take picture. Please try again.');
+      Alert.alert(t('message.error'), 'Failed to take picture. Please try again.');
     }
   };
 
@@ -305,14 +331,14 @@ export default function AddCargoPage() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.Images],
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsMultipleSelection: true,
         quality: 0.7, // Reduced quality to save space
         base64: true,
         selectionLimit: 5 // Limit to prevent storage issues
       });
 
-      if (!result.canceled && result.assets.length > 0) {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         const newPhotos = result.assets.map(asset => {
           const compressedBase64 = compressImage(asset.base64, 0.7);
           return {
@@ -329,11 +355,11 @@ export default function AddCargoPage() {
           photos: [...prev.photos, ...newPhotos]
         }));
         
-        Alert.alert('Success', `${newPhotos.length} photo(s) added successfully`);
+        Alert.alert(t('message.success'), `${newPhotos.length} ${t('message.photosAdded')}`);
       }
     } catch (error) {
       console.error('Error selecting from gallery:', error);
-      Alert.alert('Error', 'Failed to select images. Please try again.');
+      Alert.alert(t('message.error'), 'Failed to select images. Please try again.');
     }
   };
 
@@ -354,20 +380,24 @@ export default function AddCargoPage() {
 
   const handleSave = async () => {
     if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fix the errors and try again');
+      Alert.alert(t('message.validationError'), t('message.fixErrors'));
       return;
     }
 
     setLoading(true);
     
     try {
+      // Save the quality inspector name for next time
+      await saveLastQualityInspector(formData.qualityInspector);
+
       const cargoData = {
         ...formData,
         id: isEdit ? params.editId : Date.now().toString(),
         inspectionDate: isEdit ? 
           (await getExistingInspectionDate()) : 
           new Date().toISOString(),
-        lastModified: new Date().toISOString()
+        lastModified: new Date().toISOString(),
+        exported: false // Mark as not exported initially
       };
 
       // Load existing cargos
@@ -378,6 +408,8 @@ export default function AddCargoPage() {
         // Update existing cargo
         const index = cargos.findIndex(c => c.id === params.editId);
         if (index !== -1) {
+          // Preserve export status when editing
+          cargoData.exported = cargos[index].exported || false;
           cargos[index] = cargoData;
         }
       } else {
@@ -404,8 +436,8 @@ export default function AddCargoPage() {
       }
       
       Alert.alert(
-        'Success',
-        `Material inspection ${isEdit ? 'updated' : 'saved'} successfully`,
+        t('message.success'),
+        isEdit ? t('message.inspectionUpdated') : t('message.inspectionSaved'),
         [{ text: 'OK', onPress: () => router.back() }]
       );
       
@@ -418,7 +450,7 @@ export default function AddCargoPage() {
           'Not enough storage space. Please:\n\n1. Delete old inspections\n2. Remove some photos\n3. Free up device storage\n\nThen try saving again.'
         );
       } else {
-        Alert.alert('Error', 'Failed to save material inspection. Please try again.');
+        Alert.alert(t('message.error'), 'Failed to save material inspection. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -484,10 +516,10 @@ export default function AddCargoPage() {
             {/* Basic Information */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Basic Information</Title>
+                <Title style={styles.sectionTitle}>{t('section.basicInfo')}</Title>
                 
                 <TextInput
-                  label="Invoice Number *"
+                  label={`${t('form.invoiceNumber')} *`}
                   value={formData.invoiceNumber}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, invoiceNumber: text }))}
                   style={styles.input}
@@ -499,7 +531,7 @@ export default function AddCargoPage() {
                 )}
 
                 <TextInput
-                  label="Material Type *"
+                  label={`${t('form.materialType')} *`}
                   value={formData.materialType}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, materialType: text }))}
                   style={styles.input}
@@ -511,7 +543,7 @@ export default function AddCargoPage() {
                 )}
 
                 <TextInput
-                  label="Quantity Received (Optional)"
+                  label={t('form.quantityReceived')}
                   value={formData.quantityReceived}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, quantityReceived: text }))}
                   style={styles.input}
@@ -520,12 +552,21 @@ export default function AddCargoPage() {
                 />
 
                 <TextInput
-                  label="Receive Date"
+                  label={t('form.receiveDate')}
                   value={formatDateForDisplay(formData.receiveDate)}
                   editable={false}
                   style={styles.input}
                   mode="outlined"
                   right={<TextInput.Icon icon="calendar" />}
+                />
+
+                <TextInput
+                  label={t('form.storageLocation')}
+                  value={formData.storageLocation}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, storageLocation: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                  placeholder="Ex: Armazém A, Setor 3, Prateleira 15"
                 />
               </Card.Content>
             </Card>
@@ -533,10 +574,10 @@ export default function AddCargoPage() {
             {/* Inspector Information */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Inspector Information</Title>
+                <Title style={styles.sectionTitle}>{t('section.inspectorInfo')}</Title>
                 
                 <TextInput
-                  label="Quality Inspector *"
+                  label={`${t('form.qualityInspector')} *`}
                   value={formData.qualityInspector}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, qualityInspector: text }))}
                   style={styles.input}
@@ -548,7 +589,7 @@ export default function AddCargoPage() {
                 )}
 
                 <TextInput
-                  label="Safety Inspector (Optional)"
+                  label={t('form.safetyInspector')}
                   value={formData.safetyInspector}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, safetyInspector: text }))}
                   style={styles.input}
@@ -556,7 +597,7 @@ export default function AddCargoPage() {
                 />
 
                 <TextInput
-                  label="Logistics Inspector (Optional)"  
+                  label={t('form.logisticsInspector')}
                   value={formData.logisticsInspector}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, logisticsInspector: text }))}
                   style={styles.input}
@@ -568,10 +609,10 @@ export default function AddCargoPage() {
             {/* Non-Conformance */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Conformance Status</Title>
+                <Title style={styles.sectionTitle}>{t('section.conformanceStatus')}</Title>
                 
                 <View style={styles.switchContainer}>
-                  <Text style={styles.switchLabel}>Non-Conforming Material</Text>
+                  <Text style={styles.switchLabel}>{t('conformance.nonConforming')}</Text>
                   <Switch
                     value={formData.nonConforming}
                     onValueChange={(value) => setFormData(prev => ({ 
@@ -598,7 +639,7 @@ export default function AddCargoPage() {
                           contentStyle={{ justifyContent: 'flex-start' }}
                           icon="chevron-down"
                         >
-                          {formData.nonConformanceType || 'Select Non-Conformance Type *'}
+                          {formData.nonConformanceType ? t(formData.nonConformanceType) : `${t('conformance.selectType')} *`}
                         </Button>
                       }
                     >
@@ -609,7 +650,7 @@ export default function AddCargoPage() {
                             setFormData(prev => ({ ...prev, nonConformanceType: type }));
                             setNonConformanceMenuVisible(false);
                           }}
-                          title={type}
+                          title={t(type)}
                         />
                       ))}
                     </Menu>
@@ -618,7 +659,7 @@ export default function AddCargoPage() {
                     )}
 
                     <TextInput
-                      label="Non-Conforming Quantity *"
+                      label={`${t('conformance.nonConformingQuantity')} *`}
                       value={formData.nonConformingQuantity}
                       onChangeText={(text) => setFormData(prev => ({ ...prev, nonConformingQuantity: text }))}
                       style={styles.input}
@@ -637,9 +678,9 @@ export default function AddCargoPage() {
             {/* Photos */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Photos</Title>
+                <Title style={styles.sectionTitle}>{t('section.photos')}</Title>
                 <Paragraph style={styles.sectionDescription}>
-                  Add photos of the material (up to 5 photos per inspection)
+                  {t('section.photosDesc')}
                 </Paragraph>
                 
                 <View style={styles.photoActions}>
@@ -649,7 +690,7 @@ export default function AddCargoPage() {
                     style={styles.photoButton}
                     icon="camera"
                   >
-                    Take Photo
+                    {t('button.takePhoto')}
                   </Button>
                   <Button
                     mode="outlined"
@@ -657,7 +698,7 @@ export default function AddCargoPage() {
                     style={styles.photoButton}
                     icon="image"
                   >
-                    From Gallery
+                    {t('button.fromGallery')}
                   </Button>
                 </View>
 
@@ -689,7 +730,7 @@ export default function AddCargoPage() {
                     style={styles.photoCount}
                     mode="flat"
                   >
-                    {formData.photos.length} photo{formData.photos.length > 1 ? 's' : ''} added
+                    {formData.photos.length} {formData.photos.length > 1 ? 'fotos adicionadas' : 'foto adicionada'}
                   </Chip>
                 )}
               </Card.Content>
@@ -698,17 +739,17 @@ export default function AddCargoPage() {
             {/* Notes */}
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Additional Notes</Title>
+                <Title style={styles.sectionTitle}>{t('section.additionalNotes')}</Title>
                 
                 <TextInput
-                  label="Notes (Optional)"
+                  label={t('form.notes')}
                   value={formData.notes}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
                   style={styles.input}
                   mode="outlined"
                   multiline
                   numberOfLines={4}
-                  placeholder="Add any additional observations, comments, or special instructions..."
+                  placeholder={t('form.notesPlaceholder')}
                 />
               </Card.Content>
             </Card>
@@ -723,7 +764,7 @@ export default function AddCargoPage() {
                 style={styles.saveButton}
                 icon="content-save"
               >
-                {isEdit ? 'Update Inspection' : 'Save Inspection'}
+                {isEdit ? t('button.update') : t('button.save')}
               </Button>
             </View>
           </ScrollView>
@@ -732,9 +773,9 @@ export default function AddCargoPage() {
         {/* Camera Options Dialog */}
         <Portal>
           <Dialog visible={cameraDialogVisible} onDismiss={() => setCameraDialogVisible(false)}>
-            <Dialog.Title>Choose Camera Option</Dialog.Title>
+            <Dialog.Title>{t('camera.chooseOption')}</Dialog.Title>
             <Dialog.Content>
-              <Paragraph>Select how you want to add photos:</Paragraph>
+              <Paragraph>{t('camera.selectHow')}</Paragraph>
               
               <Button
                 mode="outlined"
@@ -742,7 +783,7 @@ export default function AddCargoPage() {
                 style={styles.dialogButton}
                 icon="camera-timer"
               >
-                Timestamp Camera Apps
+                {t('camera.timestampApps')}
               </Button>
               
               <Button
@@ -751,7 +792,7 @@ export default function AddCargoPage() {
                 style={styles.dialogButton}
                 icon="camera"
               >
-                Default Camera
+                {t('camera.defaultCamera')}
               </Button>
               
               <Button
@@ -760,11 +801,11 @@ export default function AddCargoPage() {
                 style={styles.dialogButton}
                 icon="image"
               >
-                From Gallery
+                {t('camera.fromGallery')}
               </Button>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={() => setCameraDialogVisible(false)}>Cancel</Button>
+              <Button onPress={() => setCameraDialogVisible(false)}>{t('button.cancel')}</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
