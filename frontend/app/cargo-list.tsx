@@ -8,7 +8,6 @@ import {
   Provider as PaperProvider,
   DefaultTheme,
   Appbar,
-  FAB,
   Menu,
   Button,
   Chip,
@@ -157,10 +156,14 @@ export default function CargoListPage() {
     );
   };
 
-  const handleExport = (cargo) => {
+  const handleExportAll = () => {
+    router.push('/export-all');
+  };
+
+  const handleExportSelected = (cargo) => {
     setDetailModalVisible(false);
     router.push({
-      pathname: '/export',
+      pathname: '/export-all',
       params: { cargoId: cargo.id }
     });
   };
@@ -263,7 +266,7 @@ export default function CargoListPage() {
           </Menu>
           <Appbar.Action 
             icon="export" 
-            onPress={() => router.push('/export')} 
+            onPress={handleExportAll}
           />
         </Appbar.Header>
 
@@ -302,13 +305,6 @@ export default function CargoListPage() {
           />
         </View>
 
-        <FAB
-          style={styles.fab}
-          icon="plus"
-          onPress={() => router.push('/add-cargo')}
-          label="New Inspection"
-        />
-
         {/* Material Detail Modal */}
         <Portal>
           <Modal
@@ -320,7 +316,7 @@ export default function CargoListPage() {
               <View>
                 <View style={styles.modalHeader}>
                   <Image 
-                    source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/hfup94uz_LOGO%20carvalho.png' }}
+                    source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/svdyj4wl_LOGO%20carvalho.png' }}
                     style={styles.modalLogo}
                     resizeMode="contain"
                   />
@@ -414,7 +410,7 @@ export default function CargoListPage() {
                   </Button>
                   <Button 
                     mode="outlined" 
-                    onPress={() => handleExport(selectedCargo)}
+                    onPress={() => handleExportSelected(selectedCargo)}
                     style={styles.modalButton}
                   >
                     Export
@@ -533,13 +529,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 32,
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#2196F3',
   },
   modalContent: {
     backgroundColor: 'white',

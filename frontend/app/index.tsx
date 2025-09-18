@@ -10,7 +10,6 @@ import {
   Provider as PaperProvider,
   DefaultTheme,
   Appbar,
-  FAB,
   Badge
 } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -84,25 +83,29 @@ export default function HomePage() {
       <SafeAreaView style={styles.container}>
         <StatusBar style="auto" />
         
-        <Appbar.Header style={styles.header}>
+        <View style={styles.header}>
           <View style={styles.headerContent}>
             <Image 
-              source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/30nr43u5_LOGO.png' }}
+              source={{ uri: 'https://customer-assets.emergentagent.com/job_receipt-monitor/artifacts/svdyj4wl_LOGO%20carvalho.png' }}
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.appTitle}>Material Receiving Control</Text>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.appTitle}>Material Receiving Control</Text>
+              <Text style={styles.appSubtitle}>Quality Inspection System</Text>
+            </View>
           </View>
-          {pendingSync > 0 && (
-            <Badge style={styles.syncBadge} size={20}>
-              {pendingSync}
-            </Badge>
-          )}
-          <Appbar.Action 
-            icon="cloud-sync" 
-            onPress={() => Alert.alert('Sync', `${pendingSync} items pending sync`)} 
-          />
-        </Appbar.Header>
+          <View style={styles.headerActions}>
+            {pendingSync > 0 && (
+              <View style={styles.syncContainer}>
+                <Badge style={styles.syncBadge} size={20}>
+                  {pendingSync}
+                </Badge>
+                <MaterialIcons name="cloud-sync" size={24} color="#fff" />
+              </View>
+            )}
+          </View>
+        </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Quick Stats */}
@@ -132,10 +135,15 @@ export default function HomePage() {
           <View style={styles.actionContainer}>
             <Card style={styles.actionCard}>
               <Card.Content>
-                <Title style={styles.actionTitle}>New Material Inspection</Title>
-                <Paragraph style={styles.actionDescription}>
-                  Start a new material receiving inspection with photos and details
-                </Paragraph>
+                <View style={styles.actionHeader}>
+                  <MaterialIcons name="add-box" size={32} color="#2196F3" />
+                  <View style={styles.actionTitleContainer}>
+                    <Title style={styles.actionTitle}>New Material Inspection</Title>
+                    <Paragraph style={styles.actionDescription}>
+                      Start a new material receiving inspection with photos and details
+                    </Paragraph>
+                  </View>
+                </View>
                 <Button
                   mode="contained"
                   onPress={handleAddNewCargo}
@@ -149,10 +157,15 @@ export default function HomePage() {
 
             <Card style={styles.actionCard}>
               <Card.Content>
-                <Title style={styles.actionTitle}>Material Management</Title>
-                <Paragraph style={styles.actionDescription}>
-                  View, search, and manage all material inspection records
-                </Paragraph>
+                <View style={styles.actionHeader}>
+                  <MaterialIcons name="list-alt" size={32} color="#4CAF50" />
+                  <View style={styles.actionTitleContainer}>
+                    <Title style={styles.actionTitle}>Material Management</Title>
+                    <Paragraph style={styles.actionDescription}>
+                      View, search, and manage all material inspection records
+                    </Paragraph>
+                  </View>
+                </View>
                 <Button
                   mode="outlined"
                   onPress={handleViewAllCargos}
@@ -166,10 +179,15 @@ export default function HomePage() {
 
             <Card style={styles.actionCard}>
               <Card.Content>
-                <Title style={styles.actionTitle}>Analytics Dashboard</Title>
-                <Paragraph style={styles.actionDescription}>
-                  View statistics, compliance reports, and insights
-                </Paragraph>
+                <View style={styles.actionHeader}>
+                  <MaterialIcons name="analytics" size={32} color="#FF9800" />
+                  <View style={styles.actionTitleContainer}>
+                    <Title style={styles.actionTitle}>Analytics Dashboard</Title>
+                    <Paragraph style={styles.actionDescription}>
+                      View statistics, compliance reports, and insights
+                    </Paragraph>
+                  </View>
+                </View>
                 <Button
                   mode="outlined"
                   onPress={handleViewDashboard}
@@ -220,14 +238,6 @@ export default function HomePage() {
             </View>
           )}
         </ScrollView>
-
-        {/* Floating Action Button */}
-        <FAB
-          style={styles.fab}
-          icon="plus"
-          onPress={handleAddNewCargo}
-          label="New Inspection"
-        />
       </SafeAreaView>
     </PaperProvider>
   );
@@ -239,7 +249,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingHorizontal: 8,
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   headerContent: {
     flexDirection: 'row',
@@ -247,22 +270,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   logo: {
-    width: 32,
-    height: 32,
-    marginRight: 12,
+    width: 48,
+    height: 48,
+    marginRight: 16,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   appTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
   },
-  content: {
-    flex: 1,
-    padding: 16,
+  appSubtitle: {
+    fontSize: 14,
+    color: '#E3F2FD',
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  syncContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   syncBadge: {
     backgroundColor: '#f44336',
     marginRight: 8,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -295,20 +340,28 @@ const styles = StyleSheet.create({
   actionCard: {
     elevation: 2,
   },
+  actionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  actionTitleContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
   actionTitle: {
     fontSize: 18,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   actionDescription: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 16,
   },
   actionButton: {
     marginTop: 8,
   },
   recentContainer: {
-    marginBottom: 80,
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 20,
@@ -354,12 +407,5 @@ const styles = StyleSheet.create({
   recentStatusText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#2196F3',
   },
 });

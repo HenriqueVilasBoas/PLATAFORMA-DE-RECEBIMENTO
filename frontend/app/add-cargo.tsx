@@ -15,7 +15,8 @@ import {
   Menu,
   Divider,
   Chip,
-  IconButton
+  IconButton,
+  List
 } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -68,6 +69,7 @@ export default function AddCargoPage() {
   const [loading, setLoading] = useState(false);
   const [cameraPermission, setCameraPermission] = useState(null);
   const [nonConformanceMenuVisible, setNonConformanceMenuVisible] = useState(false);
+  const [cameraMenuVisible, setCameraMenuVisible] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -145,48 +147,73 @@ export default function AddCargoPage() {
   };
 
   const openCameraOptions = () => {
-    Alert.alert(
-      'Take Photo',
-      'Choose your preferred camera app:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Default Camera', onPress: () => takePictureDefault() },
-        { text: 'Timestamp Camera', onPress: () => openTimestampApp() },
-        { text: 'Gallery', onPress: () => selectFromGallery() }
-      ]
-    );
+    setCameraMenuVisible(true);
   };
 
   const openTimestampApp = async () => {
+    setCameraMenuVisible(false);
     try {
-      // Try to open Timestamp Camera app
-      const timestampUrl = Platform.OS === 'ios' ? 'timestamp://' : 'com.timestamp.camera';
-      const canOpen = await Linking.canOpenURL(timestampUrl);
+      // Multiple possible timestamp camera app URLs
+      const timestampUrls = [
+        'timestamp-camera://', // Timestamp Camera
+        'timestampcameraapp://', // Timestamp Camera Free
+        'opencamera://', // Open Camera
+        'camera360://', // Camera360
+      ];
       
-      if (canOpen) {
-        await Linking.openURL(timestampUrl);
-        Alert.alert(
-          'Return to App',
-          'After taking photos with Timestamp Camera, please return to this app and add them from gallery.',
-          [{ text: 'OK', onPress: () => selectFromGallery() }]
-        );
-      } else {
+      let appOpened = false;
+      
+      for (const url of timestampUrls) {
+        try {
+          const canOpen = await Linking.canOpenURL(url);
+          if (canOpen) {
+            await Linking.openURL(url);
+            appOpened = true;
+            break;
+          }
+        } catch (error) {
+          console.log(`Could not open ${url}`);
+        }
+      }
+      
+      if (!appOpened) {
         Alert.alert(
           'Timestamp Camera Not Found',
-          'Timestamp Camera app is not installed. Would you like to use the default camera instead?',
+          'No timestamp camera apps are installed. Would you like to use the default camera or select from gallery?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Use Default', onPress: () => takePictureDefault() }
+            { text: 'Default Camera', onPress: () => takePictureDefault() },
+            { text: 'Gallery', onPress: () => selectFromGallery() }
           ]
         );
+      } else {
+        // Give user option to return and add photos
+        setTimeout(() => {
+          Alert.alert(
+            'Add Photos',
+            'After taking photos with your timestamp camera app, use "From Gallery" to add them to this inspection.',
+            [
+              { text: 'OK' },
+              { text: 'Open Gallery', onPress: () => selectFromGallery() }
+            ]
+          );
+        }, 1000);
       }
     } catch (error) {
       console.error('Error opening timestamp app:', error);
-      takePictureDefault();
+      Alert.alert(
+        'Error',
+        'Could not open timestamp camera app. Would you like to use the default camera?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Default Camera', onPress: () => takePictureDefault() }
+        ]
+      );
     }
   };
 
   const takePictureDefault = async () => {
+    setCameraMenuVisible(false);
     if (!cameraPermission) {
       Alert.alert('Permission Required', 'Camera permission is required to take photos');
       return;
@@ -222,6 +249,7 @@ export default function AddCargoPage() {
   };
 
   const selectFromGallery = async () => {
+    setCameraMenuVisible(false);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -529,24 +557,45 @@ export default function AddCargoPage() {
                   Add photos of the material
                 </Paragraph>
                 
-                <View style={styles.photoActions}>
-                  <Button
-                    mode="contained"
-                    onPress={openCameraOptions}
-                    style={styles.photoButton}
-                    icon="camera"
-                  >
-                    Take Photo
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    onPress={selectFromGallery}
-                    style={styles.photoButton}
-                    icon="image"
-                  >
-                    From Gallery
-                  </Button>
-                </View>
+                <Menu
+                  visible={cameraMenuVisible}
+                  onDismiss={() => setCameraMenuVisible(false)}
+                  anchor={
+                    <Button
+                      mode="contained"
+                      onPress={openCameraOptions}
+                      style={styles.photoButton}
+                      icon="camera"
+                    >
+                      Take Photo
+                    </Button>
+                  }
+                >
+                  <Menu.Item 
+                    onPress={openTimestampApp} 
+                    title="Timestamp Camera" 
+                    leadingIcon="camera-timer"
+                  />
+                  <Menu.Item 
+                    onPress={takePictureDefault} 
+                    title="Default Camera" 
+                    leadingIcon="camera"
+                  />
+                  <Menu.Item 
+                    onPress={selectFromGallery} 
+                    title="From Gallery" 
+                    leadingIcon="image"
+                  />
+                </Menu>
+
+                <Button
+                  mode="outlined"
+                  onPress={selectFromGallery}
+                  style={styles.photoButton}
+                  icon="image"
+                >
+                  From Gallery
+                </Button>
 
                 {formData.photos.length > 0 && (
                   <View style={styles.photoGrid}>
@@ -667,13 +716,8 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 16,
   },
-  photoActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
   photoButton: {
-    flex: 1,
+    marginBottom: 12,
   },
   photoGrid: {
     flexDirection: 'row',
