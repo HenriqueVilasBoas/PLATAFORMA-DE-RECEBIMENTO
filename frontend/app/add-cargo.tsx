@@ -290,7 +290,7 @@ export default function AddCargoPage() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaType.Images, // Fixed: Use MediaType.Images instead of MediaTypeOptions.Images
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7, // Reduced quality to save space
@@ -331,7 +331,7 @@ export default function AddCargoPage() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaType.Images, // Fixed: Use MediaType.Images instead of MediaTypeOptions.Images
         allowsMultipleSelection: true,
         quality: 0.7, // Reduced quality to save space
         base64: true,

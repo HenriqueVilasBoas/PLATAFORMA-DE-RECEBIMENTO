@@ -21,6 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const theme = {
   ...DefaultTheme,
@@ -34,6 +35,7 @@ const theme = {
 };
 
 export default function CargoListPage() {
+  const { t } = useLanguage();
   const [cargos, setCargos] = useState([]);
   const [filteredCargos, setFilteredCargos] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,7 +58,7 @@ export default function CargoListPage() {
       applyFilters(cargoList, searchQuery, selectedFilter);
     } catch (error) {
       console.error('Error loading cargos:', error);
-      Alert.alert('Error', 'Failed to load material data');
+      Alert.alert(t('message.error'), 'Failed to load material data');
     }
   };
 
@@ -69,6 +71,7 @@ export default function CargoListPage() {
         cargo.invoiceNumber.toLowerCase().includes(query.toLowerCase()) ||
         cargo.materialType.toLowerCase().includes(query.toLowerCase()) ||
         cargo.qualityInspector?.toLowerCase().includes(query.toLowerCase()) ||
+        cargo.storageLocation?.toLowerCase().includes(query.toLowerCase()) ||
         cargo.notes?.toLowerCase().includes(query.toLowerCase())
       );
     }
@@ -85,6 +88,12 @@ export default function CargoListPage() {
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
         filtered = filtered.filter(cargo => new Date(cargo.receiveDate || cargo.inspectionDate) > weekAgo);
+        break;
+      case 'exported':
+        filtered = filtered.filter(cargo => cargo.exported);
+        break;
+      case 'not-exported':
+        filtered = filtered.filter(cargo => !cargo.exported);
         break;
       default:
         // 'all' - no additional filtering
@@ -135,9 +144,9 @@ export default function CargoListPage() {
       'Delete Inspection',
       `Are you sure you want to delete inspection #${cargo.invoiceNumber}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('button.cancel'), style: 'cancel' },
         { 
-          text: 'Delete', 
+          text: t('button.delete'), 
           style: 'destructive',
           onPress: async () => {
             try {
@@ -145,10 +154,10 @@ export default function CargoListPage() {
               await AsyncStorage.setItem('cargo_inspections', JSON.stringify(updatedCargos));
               setDetailModalVisible(false);
               loadCargos();
-              Alert.alert('Success', 'Inspection deleted successfully');
+              Alert.alert(t('message.success'), 'Inspection deleted successfully');
             } catch (error) {
               console.error('Error deleting cargo:', error);
-              Alert.alert('Error', 'Failed to delete inspection');
+              Alert.alert(t('message.error'), 'Failed to delete inspection');
             }
           }
         }
@@ -173,9 +182,16 @@ export default function CargoListPage() {
       <Card.Content>
         <View style={styles.cargoHeader}>
           <Text style={styles.invoiceNumber}>#{item.invoiceNumber}</Text>
-          <Text style={styles.inspectionDate}>
-            {formatDate(item.receiveDate || item.inspectionDate)}
-          </Text>
+          <View style={styles.headerRight}>
+            <Text style={styles.inspectionDate}>
+              {formatDate(item.receiveDate || item.inspectionDate)}
+            </Text>
+            {item.exported ? (
+              <MaterialIcons name="cloud-done" size={16} color="#4CAF50" style={styles.exportIcon} />
+            ) : (
+              <MaterialIcons name="cloud-off" size={16} color="#FF9800" style={styles.exportIcon} />
+            )}
+          </View>
         </View>
         
         <View style={styles.cargoInfo}>
@@ -185,13 +201,20 @@ export default function CargoListPage() {
           )}
         </View>
 
+        {item.storageLocation && (
+          <View style={styles.storageInfo}>
+            <MaterialIcons name="location-on" size={14} color="#666" />
+            <Text style={styles.storageText}>{item.storageLocation}</Text>
+          </View>
+        )}
+
         <View style={styles.inspectorInfo}>
-          <Text style={styles.inspectorText}>Quality: {item.qualityInspector}</Text>
+          <Text style={styles.inspectorText}>{t('form.qualityInspector')}: {item.qualityInspector}</Text>
           {item.safetyInspector && (
-            <Text style={styles.inspectorText}>Safety: {item.safetyInspector}</Text>
+            <Text style={styles.inspectorText}>{t('form.safetyInspector')}: {item.safetyInspector}</Text>
           )}
           {item.logisticsInspector && (
-            <Text style={styles.inspectorText}>Logistics: {item.logisticsInspector}</Text>
+            <Text style={styles.inspectorText}>{t('form.logisticsInspector')}: {item.logisticsInspector}</Text>
           )}
         </View>
 
@@ -214,7 +237,7 @@ export default function CargoListPage() {
               />
             )}
           >
-            {item.nonConforming ? 'Non-Conforming' : 'Compliant'}
+            {item.nonConforming ? t('conformance.nonCompliant') : t('conformance.compliant')}
           </Chip>
           
           {item.photos && item.photos.length > 0 && (
@@ -224,9 +247,23 @@ export default function CargoListPage() {
               textStyle={{ fontSize: 12 }}
               icon="camera"
             >
-              {item.photos.length} photos
+              {item.photos.length} fotos
             </Chip>
           )}
+
+          <Chip 
+            mode="flat"
+            style={[
+              styles.exportStatusChip,
+              { backgroundColor: item.exported ? '#e8f5e8' : '#fff3e0' }
+            ]}
+            textStyle={{ 
+              color: item.exported ? '#2e7d32' : '#ef6c00',
+              fontSize: 10 
+            }}
+          >
+            {item.exported ? t('status.exported') : t('status.notExported')}
+          </Chip>
         </View>
       </Card.Content>
     </Card>
@@ -234,10 +271,12 @@ export default function CargoListPage() {
 
   const getFilterLabel = (filter) => {
     switch (filter) {
-      case 'compliant': return 'Compliant Only';
-      case 'non-compliant': return 'Non-Compliant Only';
-      case 'recent': return 'Recent (7 days)';
-      default: return 'All Inspections';
+      case 'compliant': return 'Conformes';
+      case 'non-compliant': return 'Não Conformes';
+      case 'recent': return 'Recentes (7 dias)';
+      case 'exported': return 'Exportados';
+      case 'not-exported': return 'Não Exportados';
+      default: return 'Todas as Inspeções';
     }
   };
 
@@ -259,10 +298,12 @@ export default function CargoListPage() {
               />
             }
           >
-            <Menu.Item onPress={() => handleFilterSelect('all')} title="All Inspections" />
-            <Menu.Item onPress={() => handleFilterSelect('compliant')} title="Compliant Only" />
-            <Menu.Item onPress={() => handleFilterSelect('non-compliant')} title="Non-Compliant Only" />
-            <Menu.Item onPress={() => handleFilterSelect('recent')} title="Recent (7 days)" />
+            <Menu.Item onPress={() => handleFilterSelect('all')} title="Todas as Inspeções" />
+            <Menu.Item onPress={() => handleFilterSelect('compliant')} title="Conformes" />
+            <Menu.Item onPress={() => handleFilterSelect('non-compliant')} title="Não Conformes" />
+            <Menu.Item onPress={() => handleFilterSelect('recent')} title="Recentes (7 dias)" />
+            <Menu.Item onPress={() => handleFilterSelect('exported')} title="Exportados" />
+            <Menu.Item onPress={() => handleFilterSelect('not-exported')} title="Não Exportados" />
           </Menu>
           <Appbar.Action 
             icon="export" 
@@ -272,7 +313,7 @@ export default function CargoListPage() {
 
         <View style={styles.content}>
           <Searchbar
-            placeholder="Search by invoice, material, inspector, or notes..."
+            placeholder="Pesquisar por nota fiscal, material, inspetor, local..."
             onChangeText={handleSearch}
             value={searchQuery}
             style={styles.searchbar}
@@ -293,11 +334,11 @@ export default function CargoListPage() {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="inventory" size={64} color="#ccc" />
-                <Text style={styles.emptyText}>No material inspections found</Text>
+                <Text style={styles.emptyText}>Nenhuma inspeção de material encontrada</Text>
                 <Text style={styles.emptySubtext}>
                   {searchQuery || selectedFilter !== 'all' 
-                    ? 'Try adjusting your search or filter'
-                    : 'Start by adding your first material inspection'
+                    ? 'Tente ajustar sua pesquisa ou filtro'
+                    : 'Comece adicionando sua primeira inspeção de material'
                   }
                 </Text>
               </View>
@@ -321,44 +362,51 @@ export default function CargoListPage() {
                     resizeMode="contain"
                   />
                   <Title style={styles.modalTitle}>
-                    Inspection #{selectedCargo.invoiceNumber}
+                    Inspeção #{selectedCargo.invoiceNumber}
                   </Title>
                 </View>
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Material Type:</Text>
+                  <Text style={styles.detailLabel}>{t('form.materialType')}:</Text>
                   <Text style={styles.detailValue}>{selectedCargo.materialType}</Text>
                 </View>
                 
                 {selectedCargo.quantityReceived && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Quantity:</Text>
+                    <Text style={styles.detailLabel}>Quantidade:</Text>
                     <Text style={styles.detailValue}>{selectedCargo.quantityReceived}</Text>
                   </View>
                 )}
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Receive Date:</Text>
+                  <Text style={styles.detailLabel}>{t('form.receiveDate')}:</Text>
                   <Text style={styles.detailValue}>
                     {formatDate(selectedCargo.receiveDate)}
                   </Text>
                 </View>
 
+                {selectedCargo.storageLocation && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{t('form.storageLocation')}:</Text>
+                    <Text style={styles.detailValue}>{selectedCargo.storageLocation}</Text>
+                  </View>
+                )}
+
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Quality Inspector:</Text>
+                  <Text style={styles.detailLabel}>{t('form.qualityInspector')}:</Text>
                   <Text style={styles.detailValue}>{selectedCargo.qualityInspector}</Text>
                 </View>
 
                 {selectedCargo.safetyInspector && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Safety Inspector:</Text>
+                    <Text style={styles.detailLabel}>{t('form.safetyInspector')}:</Text>
                     <Text style={styles.detailValue}>{selectedCargo.safetyInspector}</Text>
                   </View>
                 )}
 
                 {selectedCargo.logisticsInspector && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Logistics Inspector:</Text>
+                    <Text style={styles.detailLabel}>{t('form.logisticsInspector')}:</Text>
                     <Text style={styles.detailValue}>{selectedCargo.logisticsInspector}</Text>
                   </View>
                 )}
@@ -369,18 +417,28 @@ export default function CargoListPage() {
                     styles.detailValue,
                     { color: selectedCargo.nonConforming ? '#c62828' : '#2e7d32' }
                   ]}>
-                    {selectedCargo.nonConforming ? 'Non-Conforming' : 'Compliant'}
+                    {selectedCargo.nonConforming ? t('conformance.nonCompliant') : t('conformance.compliant')}
+                  </Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status de Exportação:</Text>
+                  <Text style={[
+                    styles.detailValue,
+                    { color: selectedCargo.exported ? '#2e7d32' : '#ef6c00' }
+                  ]}>
+                    {selectedCargo.exported ? t('status.exported') : t('status.notExported')}
                   </Text>
                 </View>
 
                 {selectedCargo.nonConforming && (
                   <>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Non-Conformance Type:</Text>
-                      <Text style={styles.detailValue}>{selectedCargo.nonConformanceType}</Text>
+                      <Text style={styles.detailLabel}>Tipo de Não Conformidade:</Text>
+                      <Text style={styles.detailValue}>{selectedCargo.nonConformanceType ? t(selectedCargo.nonConformanceType) : selectedCargo.nonConformanceType}</Text>
                     </View>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Non-Conforming Quantity:</Text>
+                      <Text style={styles.detailLabel}>Quantidade Não Conforme:</Text>
                       <Text style={styles.detailValue}>{selectedCargo.nonConformingQuantity}</Text>
                     </View>
                   </>
@@ -388,15 +446,15 @@ export default function CargoListPage() {
 
                 {selectedCargo.notes && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Notes:</Text>
+                    <Text style={styles.detailLabel}>Observações:</Text>
                     <Text style={styles.detailValue}>{selectedCargo.notes}</Text>
                   </View>
                 )}
 
                 {selectedCargo.photos && selectedCargo.photos.length > 0 && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Photos:</Text>
-                    <Text style={styles.detailValue}>{selectedCargo.photos.length} attached</Text>
+                    <Text style={styles.detailLabel}>Fotos:</Text>
+                    <Text style={styles.detailValue}>{selectedCargo.photos.length} anexadas</Text>
                   </View>
                 )}
 
@@ -406,14 +464,14 @@ export default function CargoListPage() {
                     onPress={() => handleEditCargo(selectedCargo)}
                     style={styles.modalButton}
                   >
-                    Edit
+                    {t('button.edit')}
                   </Button>
                   <Button 
                     mode="outlined" 
                     onPress={() => handleExportSelected(selectedCargo)}
                     style={styles.modalButton}
                   >
-                    Export
+                    {t('button.export')}
                   </Button>
                   <Button 
                     mode="contained" 
@@ -421,7 +479,7 @@ export default function CargoListPage() {
                     buttonColor="#c62828"
                     style={styles.modalButton}
                   >
-                    Delete
+                    {t('button.delete')}
                   </Button>
                 </View>
               </View>
@@ -467,6 +525,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   invoiceNumber: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -475,6 +538,9 @@ const styles = StyleSheet.create({
   inspectionDate: {
     fontSize: 14,
     color: '#666',
+  },
+  exportIcon: {
+    marginLeft: 4,
   },
   cargoInfo: {
     flexDirection: 'row',
@@ -491,6 +557,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  storageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 4,
+  },
+  storageText: {
+    fontSize: 12,
+    color: '#666',
+    flex: 1,
+  },
   inspectorInfo: {
     marginBottom: 12,
   },
@@ -501,8 +578,9 @@ const styles = StyleSheet.create({
   },
   cargoStatus: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   statusChip: {
     height: 28,
@@ -510,6 +588,9 @@ const styles = StyleSheet.create({
   photoChip: {
     height: 28,
     backgroundColor: '#e3f2fd',
+  },
+  exportStatusChip: {
+    height: 24,
   },
   emptyContainer: {
     flex: 1,

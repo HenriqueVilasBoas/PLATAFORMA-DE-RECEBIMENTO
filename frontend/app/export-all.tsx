@@ -22,6 +22,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const theme = {
   ...DefaultTheme,
@@ -35,6 +36,7 @@ const theme = {
 };
 
 export default function ExportAllPage() {
+  const { t } = useLanguage();
   const params = useLocalSearchParams();
   const cargoId = params.cargoId;
   
@@ -64,7 +66,7 @@ export default function ExportAllPage() {
       }
     } catch (error) {
       console.error('Error loading cargos:', error);
-      Alert.alert('Error', 'Failed to load material data');
+      Alert.alert(t('message.error'), 'Failed to load material data');
     }
   };
 
@@ -85,44 +87,71 @@ export default function ExportAllPage() {
     );
   };
 
+  const markAsExported = async (cargoIds) => {
+    try {
+      const cargosData = await AsyncStorage.getItem('cargo_inspections');
+      const cargos = cargosData ? JSON.parse(cargosData) : [];
+      
+      // Mark selected cargos as exported
+      const updatedCargos = cargos.map(cargo => {
+        if (cargoIds.includes(cargo.id)) {
+          return { ...cargo, exported: true, exportDate: new Date().toISOString() };
+        }
+        return cargo;
+      });
+      
+      await AsyncStorage.setItem('cargo_inspections', JSON.stringify(updatedCargos));
+      
+      // Remove from pending sync (reduce pending sync count)
+      const pendingData = await AsyncStorage.getItem('pending_sync');
+      const pending = pendingData ? JSON.parse(pendingData) : [];
+      const filteredPending = pending.filter(item => !cargoIds.includes(item.id));
+      await AsyncStorage.setItem('pending_sync', JSON.stringify(filteredPending));
+      
+    } catch (error) {
+      console.error('Error marking as exported:', error);
+    }
+  };
+
   const generateTxtContent = (cargo) => {
     const content = `
-MATERIAL RECEIVING INSPECTION REPORT
-====================================
+RELATÓRIO DE INSPEÇÃO DE RECEBIMENTO DE MATERIAL
+===============================================
 
-Invoice Number: ${cargo.invoiceNumber}
-Material Type: ${cargo.materialType}
-${cargo.quantityReceived ? `Quantity Received: ${cargo.quantityReceived}` : ''}
-Receive Date: ${formatDate(cargo.receiveDate)}
-Inspection Date: ${formatDate(cargo.inspectionDate)}
-Last Modified: ${formatDate(cargo.lastModified)}
+Número da Nota Fiscal: ${cargo.invoiceNumber}
+Tipo de Material: ${cargo.materialType}
+${cargo.quantityReceived ? `Quantidade Recebida: ${cargo.quantityReceived}` : ''}
+Data de Recebimento: ${formatDate(cargo.receiveDate)}
+${cargo.storageLocation ? `Local de Armazenamento: ${cargo.storageLocation}` : ''}
+Data de Inspeção: ${formatDate(cargo.inspectionDate)}
+Última Modificação: ${formatDate(cargo.lastModified)}
 
-INSPECTOR INFORMATION
-=====================
-Quality Inspector: ${cargo.qualityInspector}
-${cargo.safetyInspector ? `Safety Inspector: ${cargo.safetyInspector}` : ''}
-${cargo.logisticsInspector ? `Logistics Inspector: ${cargo.logisticsInspector}` : ''}
+INFORMAÇÕES DO INSPETOR
+=======================
+Inspetor de Qualidade: ${cargo.qualityInspector}
+${cargo.safetyInspector ? `Inspetor de Segurança: ${cargo.safetyInspector}` : ''}
+${cargo.logisticsInspector ? `Inspetor de Logística: ${cargo.logisticsInspector}` : ''}
 
-CONFORMANCE STATUS
-==================
-Status: ${cargo.nonConforming ? 'NON-CONFORMING' : 'COMPLIANT'}
-${cargo.nonConforming ? `Non-Conformance Type: ${cargo.nonConformanceType}\nNon-Conforming Quantity: ${cargo.nonConformingQuantity}` : ''}
+STATUS DE CONFORMIDADE
+======================
+Status: ${cargo.nonConforming ? 'NÃO CONFORME' : 'CONFORME'}
+${cargo.nonConforming ? `Tipo de Não Conformidade: ${cargo.nonConformanceType}\nQuantidade Não Conforme: ${cargo.nonConformingQuantity}` : ''}
 
-PHOTOS
-======
-${cargo.photos ? `Total Photos: ${cargo.photos.length}` : 'No photos attached'}
+FOTOS
+=====
+${cargo.photos ? `Total de Fotos: ${cargo.photos.length}` : 'Nenhuma foto anexada'}
 
-ADDITIONAL NOTES
-================
-${cargo.notes || 'No additional notes'}
+OBSERVAÇÕES ADICIONAIS
+======================
+${cargo.notes || 'Nenhuma observação adicional'}
 
-TECHNICAL DETAILS
+DETALHES TÉCNICOS
 =================
-Inspection ID: ${cargo.id}
-Export Generated: ${formatDate(new Date().toISOString())}
-System: Material Receiving Control v1.0
+ID da Inspeção: ${cargo.id}
+Exportação Gerada: ${formatDate(new Date().toISOString())}
+Sistema: Controle de Recebimento de Material v1.0
 
----END OF REPORT---
+---FIM DO RELATÓRIO---
 `.trim();
     return content;
   };
@@ -148,39 +177,39 @@ System: Material Receiving Control v1.0
     });
 
     const content = `
-MATERIAL RECEIVING CONTROL SUMMARY REPORT
-==========================================
+RELATÓRIO RESUMO - CONTROLE DE RECEBIMENTO DE MATERIAL
+======================================================
 
-OVERVIEW
-========
-Total Inspections: ${totalInspections}
-Compliant: ${compliantCount}
-Non-Compliant: ${nonCompliantCount}
-Compliance Rate: ${complianceRate}%
+VISÃO GERAL
+===========
+Total de Inspeções: ${totalInspections}
+Conformes: ${compliantCount}
+Não Conformes: ${nonCompliantCount}
+Taxa de Conformidade: ${complianceRate}%
 
-MATERIAL BREAKDOWN
-==================
-${Object.entries(materialTypes).map(([type, count]) => `${type}: ${count} inspections`).join('\n')}
+BREAKDOWN POR MATERIAL
+======================
+${Object.entries(materialTypes).map(([type, count]) => `${type}: ${count} inspeções`).join('\n')}
 
-INSPECTOR ACTIVITY
-==================
-${Object.entries(inspectors).map(([inspector, count]) => `${inspector}: ${count} inspections`).join('\n')}
-
-NON-CONFORMANCE ANALYSIS
+ATIVIDADE DOS INSPETORES
 ========================
+${Object.entries(inspectors).map(([inspector, count]) => `${inspector}: ${count} inspeções`).join('\n')}
+
+ANÁLISE DE NÃO CONFORMIDADE
+============================
 ${Object.keys(nonConformanceTypes).length > 0 ? 
-  Object.entries(nonConformanceTypes).map(([type, count]) => `${type}: ${count} cases`).join('\n') :
-  'No non-conformance issues recorded'
+  Object.entries(nonConformanceTypes).map(([type, count]) => `${type}: ${count} casos`).join('\n') :
+  'Nenhum problema de não conformidade registrado'
 }
 
-EXPORT DETAILS
-==============
-Export Date: ${formatDate(new Date().toISOString())}
-Export Type: ${exportType === 'all' ? 'All Inspections' : 'Selected Inspections'}
-Photos Included: ${includePhotos ? 'Yes' : 'No'}
-Format: ${exportFormat === 'organized' ? 'Organized Folder Structure' : 'Simple Files'}
+DETALHES DA EXPORTAÇÃO
+======================
+Data de Exportação: ${formatDate(new Date().toISOString())}
+Tipo de Exportação: ${exportType === 'all' ? 'Todas as Inspeções' : 'Inspeções Selecionadas'}
+Fotos Incluídas: ${includePhotos ? 'Sim' : 'Não'}
+Formato: ${exportFormat === 'organized' ? 'Estrutura de Pastas Organizadas' : 'Arquivos Simples'}
 
-Generated by Material Receiving Control v1.0
+Gerado por Controle de Recebimento de Material v1.0
 `.trim();
     return content;
   };
@@ -193,7 +222,7 @@ Generated by Material Receiving Control v1.0
       const cargosToExport = allCargos.filter(cargo => selectedCargos.includes(cargo.id));
       
       if (cargosToExport.length === 0) {
-        Alert.alert('Error', 'No materials selected for export');
+        Alert.alert(t('message.error'), 'Nenhum material selecionado para exportação');
         return;
       }
 
@@ -221,7 +250,7 @@ Generated by Material Receiving Control v1.0
         
         // Generate summary report
         const summaryContent = createSummaryReport(cargosToExport);
-        await FileSystem.writeAsStringAsync(`${exportDir}SUMMARY_REPORT.txt`, summaryContent);
+        await FileSystem.writeAsStringAsync(`${exportDir}RELATORIO_RESUMO.txt`, summaryContent);
         setProgress(0.2);
 
         // Generate individual reports and save photos
@@ -231,7 +260,7 @@ Generated by Material Receiving Control v1.0
           // Individual report
           const reportContent = generateTxtContent(cargo);
           await FileSystem.writeAsStringAsync(
-            `${exportDir}reports/INSPECTION_${cargo.invoiceNumber}.txt`, 
+            `${exportDir}reports/INSPECAO_${cargo.invoiceNumber}.txt`, 
             reportContent
           );
           
@@ -244,7 +273,7 @@ Generated by Material Receiving Control v1.0
               for (let j = 0; j < cargo.photos.length; j++) {
                 const photo = cargo.photos[j];
                 if (photo.base64) {
-                  const photoPath = `${cargoPhotoDir}photo_${j + 1}.jpg`;
+                  const photoPath = `${cargoPhotoDir}foto_${j + 1}.jpg`;
                   await FileSystem.writeAsStringAsync(photoPath, photo.base64, {
                     encoding: FileSystem.EncodingType.Base64
                   });
@@ -261,7 +290,7 @@ Generated by Material Receiving Control v1.0
       } else {
         // Simple format - all files in one directory
         const summaryContent = createSummaryReport(cargosToExport);
-        await FileSystem.writeAsStringAsync(`${exportDir}summary.txt`, summaryContent);
+        await FileSystem.writeAsStringAsync(`${exportDir}resumo.txt`, summaryContent);
         
         for (let i = 0; i < cargosToExport.length; i++) {
           const cargo = cargosToExport[i];
@@ -273,14 +302,17 @@ Generated by Material Receiving Control v1.0
 
       setProgress(0.9);
 
+      // Mark as exported
+      await markAsExported(selectedCargos);
+
       // Share the export directory
       const shareAvailable = await Sharing.isAvailableAsync();
       if (shareAvailable) {
         await Sharing.shareAsync(exportDir);
         setProgress(1);
-        Alert.alert('Success', 'Export completed and shared successfully');
+        Alert.alert(t('message.success'), 'Exportação concluída e compartilhada com sucesso');
       } else {
-        Alert.alert('Export Complete', `Files saved to: ${exportDir}`);
+        Alert.alert('Exportação Completa', `Arquivos salvos em: ${exportDir}`);
       }
 
     } catch (error) {
@@ -288,11 +320,11 @@ Generated by Material Receiving Control v1.0
       
       if (error.message.includes('SQLITE_FULL') || error.message.includes('disk is full')) {
         Alert.alert(
-          'Storage Full', 
-          'Not enough storage space for export. Please free up some space and try again.'
+          'Armazenamento Cheio', 
+          'Não há espaço suficiente para exportação. Por favor, libere espaço e tente novamente.'
         );
       } else {
-        Alert.alert('Export Failed', 'Failed to export material inspections. Please try again.');
+        Alert.alert('Falha na Exportação', 'Falha ao exportar inspeções de material. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -304,14 +336,14 @@ Generated by Material Receiving Control v1.0
     try {
       const emailAvailable = await MailComposer.isAvailableAsync();
       if (!emailAvailable) {
-        Alert.alert('Email Not Available', 'Email is not configured on this device');
+        Alert.alert('Email Não Disponível', 'Email não está configurado neste dispositivo');
         return;
       }
 
       const cargosToExport = allCargos.filter(cargo => selectedCargos.includes(cargo.id));
       
       if (cargosToExport.length === 0) {
-        Alert.alert('Error', 'No materials selected for export');
+        Alert.alert(t('message.error'), 'Nenhum material selecionado para exportação');
         return;
       }
 
@@ -329,7 +361,7 @@ Generated by Material Receiving Control v1.0
         await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
         
         // Summary report
-        const summaryPath = `${tempDir}summary_report.txt`;
+        const summaryPath = `${tempDir}relatorio_resumo.txt`;
         await FileSystem.writeAsStringAsync(summaryPath, summaryContent);
         attachments.push(summaryPath);
         
@@ -342,10 +374,13 @@ Generated by Material Receiving Control v1.0
         }
 
         await MailComposer.composeAsync({
-          subject: `Material Receiving Control Export - ${formatDate(new Date().toISOString())} - ${cargosToExport.length} Inspections`,
-          body: `Material receiving inspection export containing ${cargosToExport.length} inspections.\n\nCompliant: ${cargosToExport.filter(c => !c.nonConforming).length}\nNon-Compliant: ${cargosToExport.filter(c => c.nonConforming).length}\n\nGenerated by Material Receiving Control v1.0`,
+          subject: `Exportação Controle de Recebimento - ${formatDate(new Date().toISOString())} - ${cargosToExport.length} Inspeções`,
+          body: `Exportação de inspeção de recebimento de material contendo ${cargosToExport.length} inspeções.\n\nConformes: ${cargosToExport.filter(c => !c.nonConforming).length}\nNão Conformes: ${cargosToExport.filter(c => c.nonConforming).length}\n\nGerado por Controle de Recebimento de Material v1.0`,
           attachments: attachments
         });
+
+        // Mark as exported after successful email
+        await markAsExported(selectedCargos);
 
         // Clean up temp files
         await FileSystem.deleteAsync(tempDir, { idempotent: true });
@@ -353,14 +388,17 @@ Generated by Material Receiving Control v1.0
         console.error('File system error in email export:', fileError);
         // Fallback to simple email without attachments
         await MailComposer.composeAsync({
-          subject: `Material Receiving Control Export - ${formatDate(new Date().toISOString())}`,
+          subject: `Exportação Controle de Recebimento - ${formatDate(new Date().toISOString())}`,
           body: summaryContent
         });
+        
+        // Still mark as exported even without attachments
+        await markAsExported(selectedCargos);
       }
       
     } catch (error) {
       console.error('Email export error:', error);
-      Alert.alert('Email Failed', 'Failed to compose email. Please try again.');
+      Alert.alert('Falha no Email', 'Falha ao compor email. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -371,7 +409,7 @@ Generated by Material Receiving Control v1.0
       const cargosToExport = allCargos.filter(cargo => selectedCargos.includes(cargo.id));
       
       if (cargosToExport.length === 0) {
-        Alert.alert('Error', 'No materials selected for export');
+        Alert.alert(t('message.error'), 'Nenhum material selecionado para exportação');
         return;
       }
 
@@ -379,23 +417,23 @@ Generated by Material Receiving Control v1.0
       const compliantCount = cargosToExport.filter(c => !c.nonConforming).length;
       const nonCompliantCount = cargosToExport.filter(c => c.nonConforming).length;
       
-      const summaryText = `📋 *Material Receiving Control Report*
+      const summaryText = `📋 *Relatório Controle de Recebimento*
 
-📊 *Summary*
-• Total Inspections: ${cargosToExport.length}
-• ✅ Compliant: ${compliantCount}
-• ⚠️ Non-Compliant: ${nonCompliantCount}
-• 📈 Compliance Rate: ${cargosToExport.length > 0 ? ((compliantCount / cargosToExport.length) * 100).toFixed(1) : 0}%
+📊 *Resumo*
+• Total de Inspeções: ${cargosToExport.length}
+• ✅ Conformes: ${compliantCount}
+• ⚠️ Não Conformes: ${nonCompliantCount}
+• 📈 Taxa de Conformidade: ${cargosToExport.length > 0 ? ((compliantCount / cargosToExport.length) * 100).toFixed(1) : 0}%
 
-📋 *Inspection Details*
+📋 *Detalhes das Inspeções*
 ${cargosToExport.slice(0, 5).map(cargo => `
 • #${cargo.invoiceNumber} - ${cargo.materialType}
-  Inspector: ${cargo.qualityInspector}
-  Status: ${cargo.nonConforming ? '⚠️ Non-Compliant' : '✅ Compliant'}
-`).join('')}${cargosToExport.length > 5 ? `\n... and ${cargosToExport.length - 5} more inspections` : ''}
+  Inspetor: ${cargo.qualityInspector}
+  Status: ${cargo.nonConforming ? '⚠️ Não Conforme' : '✅ Conforme'}
+`).join('')}${cargosToExport.length > 5 ? `\n... e mais ${cargosToExport.length - 5} inspeções` : ''}
 
-📅 Generated: ${formatDate(new Date().toISOString())}
-🔧 System: Material Receiving Control v1.0`;
+📅 Gerado: ${formatDate(new Date().toISOString())}
+🔧 Sistema: Controle de Recebimento de Material v1.0`;
       
       const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(summaryText)}`;
       
@@ -403,33 +441,35 @@ ${cargosToExport.slice(0, 5).map(cargo => `
         const canOpen = await Linking.canOpenURL(whatsappUrl);
         if (canOpen) {
           await Linking.openURL(whatsappUrl);
+          // Mark as exported after successful WhatsApp
+          await markAsExported(selectedCargos);
         } else {
-          Alert.alert('WhatsApp Not Available', 'WhatsApp is not installed on this device');
+          Alert.alert('WhatsApp Não Disponível', 'WhatsApp não está instalado neste dispositivo');
         }
       } catch (linkingError) {
-        Alert.alert('WhatsApp Failed', 'Could not open WhatsApp. Please make sure it is installed.');
+        Alert.alert('Falha no WhatsApp', 'Não foi possível abrir o WhatsApp. Certifique-se de que está instalado.');
       }
     } catch (error) {
       console.error('WhatsApp export error:', error);
-      Alert.alert('WhatsApp Failed', 'Failed to prepare WhatsApp export');
+      Alert.alert('Falha no WhatsApp', 'Falha ao preparar exportação do WhatsApp');
     }
   };
 
   const exportToCloud = async () => {
     try {
       Alert.alert(
-        'Cloud Export',
-        'Choose your preferred cloud storage service:',
+        'Exportação na Nuvem',
+        'Escolha seu serviço de armazenamento na nuvem preferido:',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('button.cancel'), style: 'cancel' },
           { text: 'Google Drive', onPress: () => handleCloudExport('Google Drive') },
           { text: 'Dropbox', onPress: () => handleCloudExport('Dropbox') },
-          { text: 'Other', onPress: () => handleCloudExport('other cloud storage') }
+          { text: 'Outro', onPress: () => handleCloudExport('outro armazenamento na nuvem') }
         ]
       );
     } catch (error) {
       console.error('Cloud export error:', error);
-      Alert.alert('Cloud Export Failed', 'Failed to export to cloud storage');
+      Alert.alert('Falha na Exportação na Nuvem', 'Falha ao exportar para armazenamento na nuvem');
     }
   };
 
@@ -439,13 +479,13 @@ ${cargosToExport.slice(0, 5).map(cargo => `
       await exportToDevice();
       
       Alert.alert(
-        'Cloud Upload Instructions',
-        `Export files have been prepared. To upload to ${provider}:\n\n1. Open your ${provider} app\n2. Navigate to the upload section\n3. Select the exported folder from your device\n4. Upload to your cloud storage`,
+        'Instruções de Upload na Nuvem',
+        `Os arquivos de exportação foram preparados. Para fazer upload para ${provider}:\n\n1. Abra seu app ${provider}\n2. Navegue até a seção de upload\n3. Selecione a pasta exportada do seu dispositivo\n4. Faça upload para seu armazenamento na nuvem`,
         [{ text: 'OK' }]
       );
     } catch (error) {
       console.error('Cloud export error:', error);
-      Alert.alert('Error', 'Failed to prepare files for cloud export');
+      Alert.alert('Erro', 'Falha ao preparar arquivos para exportação na nuvem');
     }
   };
 
@@ -456,25 +496,25 @@ ${cargosToExport.slice(0, 5).map(cargo => `
         
         <Appbar.Header>
           <Appbar.BackAction onPress={() => router.back()} />
-          <Appbar.Content title="Export Inspections" />
+          <Appbar.Content title={t('export.title')} />
         </Appbar.Header>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Export Type Selection */}
           <Card style={styles.section}>
             <Card.Content>
-              <Title style={styles.sectionTitle}>Export Type</Title>
+              <Title style={styles.sectionTitle}>{t('export.exportType')}</Title>
               <RadioButton.Group 
                 onValueChange={value => setExportType(value)} 
                 value={exportType}
               >
                 <View style={styles.radioItem}>
                   <RadioButton value="all" />
-                  <Text style={styles.radioLabel}>All Inspections ({allCargos.length})</Text>
+                  <Text style={styles.radioLabel}>{t('export.allInspections')} ({allCargos.length})</Text>
                 </View>
                 <View style={styles.radioItem}>
                   <RadioButton value="selected" />
-                  <Text style={styles.radioLabel}>Selected Inspections</Text>
+                  <Text style={styles.radioLabel}>{t('export.selectedInspections')}</Text>
                 </View>
               </RadioButton.Group>
             </Card.Content>
@@ -484,9 +524,9 @@ ${cargosToExport.slice(0, 5).map(cargo => `
           {exportType === 'selected' && (
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Select Inspections</Title>
+                <Title style={styles.sectionTitle}>Selecionar Inspeções</Title>
                 <Paragraph style={styles.sectionDescription}>
-                  Choose which inspections to include in the export
+                  Escolha quais inspeções incluir na exportação
                 </Paragraph>
                 
                 {allCargos.map((cargo) => (
@@ -512,7 +552,7 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                         fontSize: 10 
                       }}
                     >
-                      {cargo.nonConforming ? 'Non-Conforming' : 'Compliant'}
+                      {cargo.nonConforming ? 'Não Conforme' : 'Conforme'}
                     </Chip>
                   </View>
                 ))}
@@ -523,17 +563,17 @@ ${cargosToExport.slice(0, 5).map(cargo => `
           {/* Export Options */}
           <Card style={styles.section}>
             <Card.Content>
-              <Title style={styles.sectionTitle}>Export Options</Title>
+              <Title style={styles.sectionTitle}>Opções de Exportação</Title>
               
               <View style={styles.optionItem}>
                 <Checkbox
                   status={includePhotos ? 'checked' : 'unchecked'}
                   onPress={() => setIncludePhotos(!includePhotos)}
                 />
-                <Text style={styles.optionLabel}>Include Photos</Text>
+                <Text style={styles.optionLabel}>Incluir Fotos</Text>
               </View>
               
-              <Paragraph style={styles.sectionDescription}>Format:</Paragraph>
+              <Paragraph style={styles.sectionDescription}>Formato:</Paragraph>
               <RadioButton.Group 
                 onValueChange={value => setExportFormat(value)} 
                 value={exportFormat}
@@ -541,18 +581,18 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                 <View style={styles.radioItem}>
                   <RadioButton value="organized" />
                   <View style={styles.radioContent}>
-                    <Text style={styles.radioLabel}>Organized Folder</Text>
+                    <Text style={styles.radioLabel}>Pasta Organizada</Text>
                     <Text style={styles.radioDescription}>
-                      Separate folders for reports and photos
+                      Pastas separadas para relatórios e fotos
                     </Text>
                   </View>
                 </View>
                 <View style={styles.radioItem}>
                   <RadioButton value="simple" />
                   <View style={styles.radioContent}>
-                    <Text style={styles.radioLabel}>Simple Files</Text>
+                    <Text style={styles.radioLabel}>Arquivos Simples</Text>
                     <Text style={styles.radioDescription}>
-                      All files in one directory
+                      Todos os arquivos em um diretório
                     </Text>
                   </View>
                 </View>
@@ -563,9 +603,9 @@ ${cargosToExport.slice(0, 5).map(cargo => `
           {/* Export Methods */}
           <Card style={styles.section}>
             <Card.Content>
-              <Title style={styles.sectionTitle}>Export Methods</Title>
+              <Title style={styles.sectionTitle}>Métodos de Exportação</Title>
               <Paragraph style={styles.sectionDescription}>
-                Choose how you want to export your inspection data
+                Escolha como deseja exportar seus dados de inspeção
               </Paragraph>
               
               <Button
@@ -576,7 +616,7 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                 loading={loading && progress > 0}
                 disabled={loading}
               >
-                Direct Download
+                {t('export.directDownload')}
               </Button>
               
               <Button
@@ -586,7 +626,7 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                 icon="email"
                 disabled={loading}
               >
-                Email Multiple Reports
+                {t('export.emailMultiple')}
               </Button>
               
               <Button
@@ -596,7 +636,7 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                 icon="whatsapp"
                 disabled={loading}
               >
-                WhatsApp Multiple Reports
+                {t('export.whatsappMultiple')}
               </Button>
               
               <Button
@@ -606,7 +646,7 @@ ${cargosToExport.slice(0, 5).map(cargo => `
                 icon="cloud-upload"
                 disabled={loading}
               >
-                Cloud Storage
+                {t('export.cloudStorage')}
               </Button>
             </Card.Content>
           </Card>
@@ -615,14 +655,14 @@ ${cargosToExport.slice(0, 5).map(cargo => `
           {loading && progress > 0 && (
             <Card style={styles.section}>
               <Card.Content>
-                <Title style={styles.sectionTitle}>Export Progress</Title>
+                <Title style={styles.sectionTitle}>Progresso da Exportação</Title>
                 <ProgressBar 
                   progress={progress} 
                   color="#2196F3" 
                   style={styles.progressBar}
                 />
                 <Text style={styles.progressText}>
-                  {Math.round(progress * 100)}% Complete
+                  {Math.round(progress * 100)}% Completo
                 </Text>
               </Card.Content>
             </Card>
@@ -631,19 +671,19 @@ ${cargosToExport.slice(0, 5).map(cargo => `
           {/* Export Summary */}
           <Card style={styles.section}>
             <Card.Content>
-              <Title style={styles.sectionTitle}>Export Summary</Title>
+              <Title style={styles.sectionTitle}>Resumo da Exportação</Title>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Inspections:</Text>
+                <Text style={styles.summaryLabel}>Inspeções:</Text>
                 <Text style={styles.summaryValue}>{selectedCargos.length}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Include Photos:</Text>
-                <Text style={styles.summaryValue}>{includePhotos ? 'Yes' : 'No'}</Text>
+                <Text style={styles.summaryLabel}>Incluir Fotos:</Text>
+                <Text style={styles.summaryValue}>{includePhotos ? 'Sim' : 'Não'}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Format:</Text>
+                <Text style={styles.summaryLabel}>Formato:</Text>
                 <Text style={styles.summaryValue}>
-                  {exportFormat === 'organized' ? 'Organized Folder' : 'Simple Files'}
+                  {exportFormat === 'organized' ? 'Pasta Organizada' : 'Arquivos Simples'}
                 </Text>
               </View>
             </Card.Content>
