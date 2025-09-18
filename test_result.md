@@ -105,7 +105,7 @@
 user_problem_statement: "Comprehensive logistics inspection app with offline-first architecture, photo capture with timestamps, multiple export options (direct download, email, cloud storage), non-conformance tracking, search/filter capabilities, and analytics dashboard"
 
 backend:
-  - task: "Cargo Inspection API Endpoints"
+  - task: "Material Receiving Control API Endpoints"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -119,8 +119,11 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ ALL API ENDPOINTS WORKING PERFECTLY - Comprehensive testing completed: Health check (✅), Root endpoint (✅), CRUD operations (✅ Create/Read/Update/Delete), Pagination (✅), Validation (✅), Dashboard stats (✅), Bulk sync (✅). All 14 tests passed with 100% success rate. API properly handles: required field validation, non-conformance tracking, photo data with base64/timestamps, error handling (404s), MongoDB integration, and specialized logistics features."
+      - working: true
+        agent: "testing"
+        comment: "✅ MATERIAL RECEIVING CONTROL API FULLY VALIDATED - Updated comprehensive testing with new field structure completed with 100% success rate (20/20 tests passed). NEW FIELD STRUCTURE WORKING PERFECTLY: quantityReceived is properly optional (✅), qualityInspector is mandatory and validated (✅), safetyInspector and logisticsInspector are optional (✅), receiveDate handling with dd/mm/yyyy format (✅). All CRUD operations work with new MaterialInspection models (✅). BACKWARD COMPATIBILITY MAINTAINED: All cargo-inspection endpoints redirect properly to material-inspection endpoints (✅). Validation rules working correctly: missing qualityInspector properly rejected, optional fields handled correctly. Date formatting, bulk sync, dashboard stats, and all advanced features working perfectly."
 
-  - task: "Database Models for Cargo Data"
+  - task: "Database Models for Material Inspection Data"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -134,6 +137,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ DATABASE MODELS WORKING PERFECTLY - All Pydantic models validated through comprehensive API testing: CargoInspection model handles all required fields (invoiceNumber, materialType, quantityReceived), optional non-conformance data, photo arrays with base64/timestamp/dimensions, UUID generation, datetime handling. PhotoData model properly structures image data. SyncData model enables bulk operations. MongoDB integration seamless with proper document structure and validation."
+      - working: true
+        agent: "testing"
+        comment: "✅ MATERIAL INSPECTION MODELS FULLY VALIDATED - Updated MaterialInspection, MaterialInspectionCreate, and MaterialInspectionUpdate models working perfectly with new field structure. NEW FIELD VALIDATION CONFIRMED: quantityReceived optional (✅), qualityInspector mandatory (✅), safetyInspector optional (✅), logisticsInspector optional (✅), receiveDate field properly handled (✅). PhotoData model unchanged and working (✅). SyncData model updated for materials array and working (✅). All Pydantic validation rules enforced correctly. MongoDB document structure properly handles new fields and maintains backward compatibility."
 
 frontend:
   - task: "Home Screen with Dashboard Overview"
